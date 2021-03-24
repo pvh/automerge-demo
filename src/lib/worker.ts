@@ -1,9 +1,19 @@
 import * as Backend from "automerge/backend"
+import { encodeChange } from "automerge/backend/columnar"
+
+// ERRRRR
+const workerId = Math.round(Math.random() * 1000)
 
 const backends = {}
 
 interface CreateMessage {
   type: "CREATE"
+  id: string
+  payload: any
+}
+
+interface LoadMessage {
+  type: "LOAD"
   id: string
   payload: any
 }
@@ -20,7 +30,7 @@ interface ApplyChangesMessage {
   payload: any
 }
 
-type AutomergeFrontToBackMessage = CreateMessage | LocalChangeMessage | ApplyChangesMessage 
+type AutomergeFrontToBackMessage = CreateMessage | LoadMessage | LocalChangeMessage 
 
 // Respond to messages from the frontend document
 addEventListener("message", (evt: any) => {
@@ -31,6 +41,15 @@ addEventListener("message", (evt: any) => {
   if (type === "CREATE") {
     backends[id] = new Backend.init(payload);
   }
+
+  if (type === "LOAD") {
+    backends[id] = new Backend.init();
+
+    // broadcast a request for it
+    const payload = Backend.encodeSyncMessage(Backend.syncStart(backends[id]))
+    channel.postMessage({type: "SYNC", id, source: workerId, payload})
+  }
+  
   else if (type === "APPLY_LOCAL_CHANGE") {
     const payload = data.payload
     const [newBackend, patch] = Backend.applyLocalChange(
@@ -38,15 +57,26 @@ addEventListener("message", (evt: any) => {
       payload
     );
     backends[id] = newBackend
-    postMessage({ patch })
+    postMessage({ id, patch })
+    const changes = encodeChange(payload)
+    channel.postMessage({type: "CHANGES", id, source: workerId, changes})
   }
-  else if (data.type == "APPLY_CHANGES") {
-    const payload = data.payload
-    const [newBackend, patch] = Backend.applyChanges(
-      backends[id],
-      payload
-    )
+});
+
+// In real life, you'd open a websocket or a webRTC thing, or ... something.
+const channel = new BroadcastChannel('automerge-demo-peer-discovery')
+
+channel.addEventListener("message", (evt: any) => {
+  const { type, id, source, target, payload, changes } = evt.data
+  if (type == "SYNC") {
+    const [syncMessage, changes] = Backend.syncResponse(backends[id], Backend.decodeSyncMessage(payload))
+    channel.postMessage({type: "CHANGES", id, source: workerId, target: source, changes})
+  }
+  else if (type === "CHANGES") {
+    if (target && target !== workerId) { return }
+    if (!backends[id]) { return }
+    const [newBackend, patch] = Backend.applyChanges(backends[id], changes)
     backends[id] = newBackend
     postMessage({ id, patch })
   }
-});
+})

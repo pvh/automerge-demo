@@ -14,6 +14,40 @@ export function createDoc(id: string, initialValue?: any) {
   });
 
   worker.onmessage = (e) => {
+    // this is wrong -- we should dispatch more deliberately
+    if (e.data.id === id) {
+      update(doc => Frontend.applyPatch(doc, e.data.patch))
+    }
+  }
+
+  function change(changeFn) {
+    update(doc => {
+      const [newDoc, change] = Frontend.change(doc, changeFn);
+      worker.postMessage({
+        type: "APPLY_LOCAL_CHANGE",
+        id,
+        payload: change,
+      });
+      return newDoc
+    })
+  }
+
+	return {
+		subscribe,
+		change
+	};
+}
+
+export function loadDoc(id: string) { 
+  const { subscribe, update } = writable(Frontend.init())
+
+  worker.postMessage({
+    type: "LOAD",
+    id
+  });
+
+  worker.onmessage = (e) => {
+    // this is wrong -- we should dispatch more deliberately
     if (e.data.id === id) {
       update(doc => Frontend.applyPatch(doc, e.data.patch))
     }

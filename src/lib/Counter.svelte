@@ -1,16 +1,13 @@
 <script lang="ts">
-  import { createDoc } from './automerge-store'
   export let id: string
+  export let doc: any
 
-  let doc = createDoc("counter-" + id)
-
-  doc.change((d) => d.count = 0)
   const increment = () => doc.change((d) => d.count = d.count+1)
   
 </script>
 
 <button {id} on:click={increment}>
-  Clicks: {$doc.count}
+  Doc: {id} Clicks: {$doc.count}
 </button>
 
 <style>
