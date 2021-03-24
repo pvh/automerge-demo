@@ -14,6 +14,7 @@ Svelte App --instantiates--> automerge-store --postMessage--> worker process -- 
  * How should someone else replace BroadcastChannel with an actual networking solution?
  * How should the Svelte code relate to the Automerge store?
  * Should we bother fixing HMR state preservation? (see hmr-store.js)
+ * Improve worker/renderer reply communication.
 
 ## Recommended IDE Setup
 
