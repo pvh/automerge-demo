@@ -58,7 +58,7 @@ addEventListener("message", (evt: any) => {
     );
     backends[id] = newBackend
     postMessage({ id, patch })
-    const changes = encodeChange(payload)
+    const changes = Backend.getLastLocalChange(newBackend)
     channel.postMessage({type: "CHANGES", id, source: workerId, changes})
   }
 });
