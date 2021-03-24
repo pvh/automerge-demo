@@ -4,7 +4,8 @@
 
   let doc = createDoc()
 
-  const increment = () => doc.change((d) => d.count = d.count+1 || 0)
+  doc.change((d) => d.count = 0)
+  const increment = () => doc.change((d) => d.count = d.count+1)
   
 </script>
 

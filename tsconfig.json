@@ -3,6 +3,7 @@
     "moduleResolution": "node",
     "target": "esnext",
     "module": "esnext",
+    "lib": ["webworker", "esnext", "scripthost"],
     /**
      * svelte-preprocess cannot figure out whether you have
      * a value or a type, so tell TypeScript to enforce using

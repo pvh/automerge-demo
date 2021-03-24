@@ -11,8 +11,6 @@ export function createDoc() {
     update(doc => Frontend.applyPatch(doc, e.data.result))
   }
 
-  worker.postMessage({ type: "INIT" })
-
   function change(changeFn) {
     update(doc => {
       const [newDoc, change] = Frontend.change(doc, changeFn);
