@@ -1,28 +1,52 @@
 import * as Backend from "automerge/backend"
 
-// Create a new instance of the document backend for this worker instance
-let backend = new Backend.init();
+const backends = {}
+
+interface CreateMessage {
+  type: "CREATE"
+  id: string
+  payload: any
+}
+
+interface LocalChangeMessage {
+  type: "APPLY_LOCAL_CHANGE"
+  id: string
+  payload: any
+}
+
+interface ApplyChangesMessage {
+  type: "APPLY_CHANGES"
+  id: string
+  payload: any
+}
+
+type AutomergeFrontToBackMessage = CreateMessage | LocalChangeMessage | ApplyChangesMessage 
 
 // Respond to messages from the frontend document
-addEventListener("message", (evt) => {
-  const type = evt.data.type
-  const payload = evt.data.payload
+addEventListener("message", (evt: any) => {
+  const data: AutomergeFrontToBackMessage = evt.data
+  const {id, type, payload } = data
 
-  if (type === "APPLY_LOCAL_CHANGE") {
+
+  if (type === "CREATE") {
+    backends[id] = new Backend.init(payload);
+  }
+  else if (type === "APPLY_LOCAL_CHANGE") {
+    const payload = data.payload
     const [newBackend, patch] = Backend.applyLocalChange(
-      backend,
+      backends[id],
       payload
     );
-    backend = newBackend
-    postMessage({ result: patch })
+    backends[id] = newBackend
+    postMessage({ patch })
   }
-
-  if (type === "APPLY_CHANGES") {
+  else if (data.type == "APPLY_CHANGES") {
+    const payload = data.payload
     const [newBackend, patch] = Backend.applyChanges(
-      backend,
+      backends[id],
       payload
     )
-    backend = newBackend
-    postMessage({ result: patch })
+    backends[id] = newBackend
+    postMessage({ id, patch })
   }
 });
