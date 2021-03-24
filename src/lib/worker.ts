@@ -46,20 +46,24 @@ addEventListener("message", (evt: any) => {
     backends[id] = new Backend.init();
 
     // broadcast a request for it
-    const payload = Backend.encodeSyncMessage(Backend.syncStart(backends[id]))
-    channel.postMessage({type: "SYNC", id, source: workerId, payload})
+    const syncMessage = Backend.encodeSyncMessage(Backend.syncStart(backends[id]))
+    channel.postMessage({type: "SYNC", id, source: workerId, syncMessage})
   }
   
   else if (type === "APPLY_LOCAL_CHANGE") {
     const payload = data.payload
-    const [newBackend, patch] = Backend.applyLocalChange(
+    const [newBackend, patch, change] = Backend.applyLocalChange(
       backends[id],
       payload
     );
     backends[id] = newBackend
     postMessage({ id, patch })
-    const changes = Backend.getLastLocalChange(newBackend)
+
+    const changes = [change]
     channel.postMessage({type: "CHANGES", id, source: workerId, changes})
+
+    const syncMessage = Backend.encodeSyncMessage(Backend.syncStart(backends[id]))
+    channel.postMessage({type: "SYNC", id, source: workerId, syncMessage})
   }
 });
 
@@ -67,11 +71,19 @@ addEventListener("message", (evt: any) => {
 const channel = new BroadcastChannel('automerge-demo-peer-discovery')
 
 channel.addEventListener("message", (evt: any) => {
-  const { type, id, source, target, payload, changes } = evt.data
+  const { type, id, source, target, syncMessage, changes } = evt.data
   if (type == "SYNC") {
-    const [syncMessage, changes] = Backend.syncResponse(backends[id], Backend.decodeSyncMessage(payload))
+    if (!backends[id]) { 
+      console.log(`Received SYNC request for a document we don't have: ${id}`)
+      return
+    }
+    const [outBoundSyncMessage, changes] = Backend.syncResponse(backends[id], Backend.decodeSyncMessage(syncMessage))
     channel.postMessage({type: "CHANGES", id, source: workerId, target: source, changes})
+    if (outBoundSyncMessage) {
+      channel.postMessage({type: "SYNC", id, source: workerId, syncMessage: Backend.encodeSyncMessage(outBoundSyncMessage)})
+    }
   }
+
   else if (type === "CHANGES") {
     if (target && target !== workerId) { return }
     if (!backends[id]) { return }

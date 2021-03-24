@@ -4,21 +4,17 @@
 
   import { createDoc, loadDoc } from './lib/automerge-store'
   
-  let loadDocId = "counter-0"
+  let docName = "counter-0"
 
-  let docs = [] 
+  let docs = {}
   const addDoc = () => {
-    const id = loadDocId
-    const doc = createDoc(id)
+    const doc = createDoc(docName)
     doc.change((d) => d.count = 0)
-    docs = [...docs, {id, doc}]
-
-    loadDocId += 1
+    docs = {...docs, [docName]: doc}
   }
 
   const fetchDoc = () => {
-    docs = [...docs, {id: loadDocId, doc: loadDoc("counter-" + docs.length)}]
-    loadDocId += 1
+    docs = {...docs, [docName]: loadDoc(docName)}
   }
   
 </script>
@@ -27,10 +23,10 @@
   <img src={logo} alt="Svelte Logo" />
   <h1>Automerge Demo</h1>
 
-  <input bind:value={loadDocId}/>
+  <input bind:value={docName}/>
   <button on:click={addDoc}>Create</button>
   <button on:click={fetchDoc}>Load</button>
-  {#each docs as {id, doc} }
+  {#each Object.entries(docs) as [id, doc] }
     <Counter {id} {doc}/>
   {/each}
 </main>
