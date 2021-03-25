@@ -2,7 +2,7 @@
   export let id: string
   export let doc: any
 
-  const increment = () => doc.change((d) => d.count = d.count+1)
+  const increment = () => doc.change((d: { count: number }) => d.count = d.count+1)
   
 </script>
 

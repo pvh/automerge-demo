@@ -4,12 +4,14 @@
 
   import { createDoc, loadDoc } from './lib/automerge-store'
   
-  let docName = "counter-0"
+  interface CounterDoc { count: number }
+
+  let docName = "counter"
 
   let docs = {}
   const addDoc = () => {
     const doc = createDoc(docName)
-    doc.change((d) => d.count = 0)
+    doc.change((d: CounterDoc) => d.count = 0)
     docs = {...docs, [docName]: doc}
   }
 

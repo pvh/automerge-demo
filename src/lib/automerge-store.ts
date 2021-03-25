@@ -1,4 +1,5 @@
-import Frontend from 'automerge/frontend'
+import { Frontend, ChangeFn } from 'automerge'
+
 import MyWorker from './worker.ts?worker'
 const worker = new MyWorker()
 
@@ -20,7 +21,7 @@ export function createDoc(id: string, initialValue?: any) {
     }
   }
 
-  function change(changeFn) {
+  function change(changeFn: ChangeFn<unknown>) {
     update(doc => {
       const [newDoc, change] = Frontend.change(doc, changeFn);
       worker.postMessage({
@@ -38,6 +39,7 @@ export function createDoc(id: string, initialValue?: any) {
 	};
 }
 
+/* whoops, clean this up */
 export function loadDoc(id: string) { 
   const { subscribe, update } = writable(Frontend.init())
 
@@ -53,7 +55,7 @@ export function loadDoc(id: string) {
     }
   }
 
-  function change(changeFn) {
+  function change(changeFn: ChangeFn<unknown>) {
     update(doc => {
       const [newDoc, change] = Frontend.change(doc, changeFn);
       worker.postMessage({
