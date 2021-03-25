@@ -32,12 +32,7 @@ addEventListener("message", (evt: any) => {
   const data: AutomergeFrontToBackMessage = evt.data
   const {id, type, payload } = data
 
-
-  if (type === "CREATE") {
-    backends[id] = Backend.init();
-  }
-
-  if (type === "LOAD") {
+  if (type === "LOAD" || type === "CREATE") {
     backends[id] = Backend.init();
 
     // broadcast a request for it

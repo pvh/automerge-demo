@@ -2,7 +2,7 @@
   import logo from './assets/svelte.png'
   import Counter from './lib/Counter.svelte'
 
-  import { createDoc, loadDoc } from './lib/automerge-store'
+  import { createOrLoadDoc } from './lib/automerge-store'
   
   interface CounterDoc { count: number }
 
@@ -10,15 +10,11 @@
 
   let docs = {}
   const addDoc = () => {
-    const doc = createDoc(docName)
+    const doc = createOrLoadDoc(docName)
     doc.change((d: CounterDoc) => d.count = 0)
     docs = {...docs, [docName]: doc}
   }
 
-  const fetchDoc = () => {
-    docs = {...docs, [docName]: loadDoc(docName)}
-  }
-  
 </script>
 
 <main>
@@ -26,8 +22,7 @@
   <h1>Automerge Demo</h1>
 
   <input bind:value={docName}/>
-  <button on:click={addDoc}>Create</button>
-  <button on:click={fetchDoc}>Load</button>
+  <button on:click={addDoc}>Open</button>
   {#each Object.entries(docs) as [id, doc] }
     <Counter {id} {doc}/>
   {/each}
