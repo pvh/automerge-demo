@@ -1,4 +1,4 @@
-import { Backend, Change, SyncMessage } from "automerge"
+import { Backend, Change, Patch, SyncMessage } from "automerge"
 import type { BackendState } from "automerge"
 
 // ERRRRR
@@ -32,17 +32,19 @@ addEventListener("message", (evt: any) => {
   const data: AutomergeFrontToBackMessage = evt.data
   const {id, type, payload } = data
 
+  // TODO: fix the frontend too
+  const docId = id
+
   if (type === "LOAD" || type === "CREATE") {
     backends[id] = Backend.init();
 
     // broadcast a request for it
     const syncMessage = Backend.syncStart(backends[id])
     const encoded = Backend.encodeSyncMessage(syncMessage)
-    channel.postMessage({type: "sync", id, source: workerId, encoded})
+    sendMessage({docId, source: workerId, encoded: { type: "sync", payload: encoded }})
   }
   
   else if (type === "APPLY_LOCAL_CHANGE") {
-    const payload = data.payload
     const [newBackend, patch, change] = Backend.applyLocalChange(
       backends[id],
       payload
@@ -50,60 +52,70 @@ addEventListener("message", (evt: any) => {
     backends[id] = newBackend
     postMessage({ id, patch })
 
-    channel.postMessage({type: "change", id, source: workerId, change})
+    sendMessage({docId, source: workerId, encoded: { type: "change", payload: change}})
 
     const syncMessage = Backend.encodeSyncMessage(Backend.syncStart(backends[id]))
-    channel.postMessage({type: "sync", id, source: workerId, encoded: syncMessage})
+    sendMessage({docId, source: workerId, encoded: { type: "sync", payload: syncMessage}})
   }
 });
 
 // In real life, you'd open a websocket or a webRTC thing, or ... something.
 const channel = new BroadcastChannel('automerge-demo-peer-discovery')
 
+interface PeerSyncStatesMap { [peerId: string]: SyncState }
+const syncStates: PeerSyncStatesMap = {}
+
+interface GrossEventDataProtocol {
+  docId: string,
+  source: number,
+  target?: number,
+  encoded: AutomergeWireMessage
+}
+
 channel.addEventListener("message", (evt: any) => {
-  const { type, id, source, target, encoded, change } = evt.data
-  if (type == "sync") {
-    if (!backends[id]) { 
-      console.log(`Received SYNC request for a document we don't have: ${id}`)
-      return
-    }
-    const [outBoundSyncMessage, changes] = Backend.syncResponse(backends[id], Backend.decodeSyncMessage(encoded))
-    changes.forEach((change) => 
-      channel.postMessage({type: "change", id, source: workerId, target: source, change}))
-    
-    if (outBoundSyncMessage) {
-      const encoded = Backend.encodeSyncMessage(outBoundSyncMessage)
-      channel.postMessage({type: "sync", id, source: workerId, encoded})
-    }
+  const { docId, source, target, encoded } = evt.data as GrossEventDataProtocol
+  // TODO: uh, don't broadcast stuff that's just for one peer
+  if (target && target != workerId) { /* not for us */ return }
+
+  const decoded = decodeMessage(encoded)
+  const backend = backends[docId]
+  const syncState = syncStates[source] || { lastSync: [], waitingChanges: [] }
+
+  if (!backend) { console.log(`${docId}? never heard of 'em.`); return }
+
+  const [newBackend, newSyncState, patch, outboundMessages] = receiveMessage(decoded, backend, syncState)
+
+  if (patch) { 
+    postMessage({id: docId, patch})
   }
 
-  else if (type === "change") {
-    if (target && target !== workerId) { return }
-    if (!backends[id]) { return }
-    const [newBackend, patch] = Backend.applyChanges(backends[id], [change])
-    backends[id] = newBackend
-    postMessage({ id, patch })
-  }
+  backends[docId] = newBackend
+  syncStates[source] = newSyncState
+
+  outboundMessages.forEach((decoded) => sendMessage({docId, source: workerId, target: source, encoded: encodeMessage(decoded)}))
 })
 
-interface AutomergeSyncMessage {
+/* a dummy type to prevent accidentally assigning other uint8arrays to this type by accident */
+type BinaryChange = Uint8Array & { binaryChange: true }
+
+// the message type should be in the message
+interface SyncWireMessage {
   type: 'sync'
   payload: Uint8Array
 }
 
-interface AutomergeChangesMessage {
+interface ChangeWireMessage {
   type: 'change'
   payload: Uint8Array
 }
 
-type AutomergeWireMessage = AutomergeSyncMessage | AutomergeChangesMessage
-
+type AutomergeWireMessage = SyncWireMessage | ChangeWireMessage
 type AutomergeDecodedMessage = SyncDecodedMessage | ChangeDecodedMessage
+
+// TODO: What to do with type v. payload
 interface SyncDecodedMessage { type: 'sync', message: SyncMessage } 
 interface ChangeDecodedMessage { type: 'change', message: BinaryChange }
 
-
-// TODO: What to do with type v. payload
 function decodeMessage(message: AutomergeWireMessage): AutomergeDecodedMessage {
   if (message.type === 'sync') {
     let decoded = Backend.decodeSyncMessage(message.payload)
@@ -115,47 +127,73 @@ function decodeMessage(message: AutomergeWireMessage): AutomergeDecodedMessage {
   }
 }
 
+function encodeMessage(message: AutomergeDecodedMessage): AutomergeWireMessage {
+  if (message.type === 'sync') {
+    let payload = Backend.encodeSyncMessage(message.message)
+    return { type: 'sync', payload }
+  } else if (message.type === 'change') {
+    // Apparently we don't decode these messages?
+    // let decoded = Backend.decodeChange(message.payload)
+    return { type: 'change', payload: message.message as Uint8Array }
+  }
+}
+
 interface SyncState {
   lastSync: string[]
   waitingChanges: BinaryChange[]
 }
 
-/* a dummy type to prevent accidentally assigning other uint8arrays to this type by accident */
-type BinaryChange = Uint8Array & { binaryChange: true }
-
 // the changes from Backend.syncResponse (et al) could be flavored arrays for type safety
+
+function sendMessage(encodedMessage: GrossEventDataProtocol) {
+  console.log(encodedMessage, encodedMessage.encoded)
+  channel.postMessage(encodedMessage)
+}
 
 function receiveMessage(decodedMessage: AutomergeDecodedMessage, 
                         backend: BackendState,
                         { lastSync, waitingChanges }: SyncState): 
-    [BackendState, SyncState, AutomergeDecodedMessage[] /* next message */] {
+    [BackendState, SyncState, Patch, AutomergeDecodedMessage[] /* next messages */] {
   switch (decodedMessage.type) {
     case 'change':
       // one change at a time
       waitingChanges = [ ...waitingChanges, decodedMessage.message ]
-      return [ backend, { lastSync, waitingChanges }, [] ]
+      return [ backend, { lastSync, waitingChanges }, null, [] ]
       break;
     case 'sync':
       const [response, outboundChanges] = Backend.syncResponse(backend, decodedMessage.message)
       
       if (response) {
-        const need = Backend.getMissingDeps(backend, waitingChanges,
-          decodedMessage.message.heads)
+        const need = Backend.getMissingDeps(backend, waitingChanges, decodedMessage.message.heads)
         if (need.length === 0 && waitingChanges.length > 0) {
-          const updatedBackend = Backend.applyChanges(backend, waitingChanges)
+          const [updatedBackend, patch] = Backend.applyChanges(backend, waitingChanges)
+
           backend = updatedBackend
           waitingChanges = []
+          
+          return [backend, { lastSync, waitingChanges }, patch,
+            [
+            {type: 'sync', message: response},
+            ...outboundChanges.map(c => ({type: 'change', message: c as BinaryChange} as ChangeDecodedMessage))]]
         } else {
           response.need = response.need.concat(need)
+          
+        return [backend, { lastSync, waitingChanges }, null,
+          [
+            {type: 'sync', message: response},
+            ...outboundChanges.map(c => ({type: 'change', message: c as BinaryChange} as ChangeDecodedMessage))]]
         }
       } else {
+
         // why do we wait to do this?
         lastSync = Backend.getHeads(backend) // sync complete
-      }
-      return [backend, { lastSync, waitingChanges }, 
-        [
-          {type: 'sync', message: response},
-          ...outboundChanges.map(c => ({type: 'change', message: c as BinaryChange} as ChangeDecodedMessage))]]
+
+        // oh i need to send up the patch somehow
+        return [backend, { lastSync, waitingChanges }, null,
+          [// clean up
+            ...outboundChanges.map(c => ({type: 'change', message: c as BinaryChange} as ChangeDecodedMessage))]]
+    }
+  
   }
 }
 
