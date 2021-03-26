@@ -6,8 +6,10 @@ import { decodeMessage, receiveMessage, encodeMessage } from "./protocol"
 // ERRRRR
 const workerId = Math.round(Math.random() * 1000)
 
-interface BackendMap { [docId: string]: BackendState }
-const backends: BackendMap = {}
+const backends: { [docId: string]: BackendState } = {}
+const syncStates: { [peerId: string]: SyncState } = {} 
+// must we store these on disk? 
+// how are they corrected aside if they go funky aside from somehow successfully syncing the whole repo?
 
 const sendMessageToRenderer = (message: BackendToFrontendMessage) => {
   postMessage(message)
@@ -35,6 +37,9 @@ addEventListener("message", (evt: any) => {
     backends[docId] = newBackend
     sendMessageToRenderer({ docId, patch })
 
+    // Because we only apply messages when we get a sync, we have to send a sync to everyone
+    // and because sync is per-peer, we have to calculate a separate sync-state for everyone (or send a full sync msg).
+    // But we don't actually need to send a sync message! The other peer is a stranger.
     sendMessage({docId, source: workerId, encoded: { type: "change", payload: change}})
 
     const syncMessage = Backend.encodeSyncMessage(Backend.syncStart(backends[docId]))
@@ -45,8 +50,6 @@ addEventListener("message", (evt: any) => {
 // In real life, you'd open a websocket or a webRTC thing, or ... something.
 export const channel = new BroadcastChannel('automerge-demo-peer-discovery')
 
-interface PeerSyncStatesMap { [peerId: string]: SyncState }
-const syncStates: PeerSyncStatesMap = {}
 
 // the changes from Backend.syncResponse (et al) could be flavored arrays for type safety
 export function sendMessage(encodedMessage: GrossEventDataProtocol) {

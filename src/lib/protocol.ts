@@ -2,6 +2,8 @@ import { Backend, Patch } from "automerge";
 import type { BackendState } from "automerge";
 import type { AutomergeWireMessage, SyncState, GrossEventDataProtocol, AutomergeDecodedMessage, BinaryChange } from "./types"
 
+/* i would suggest we fold the .type into the binary of the message */
+
 export function decodeMessage(message: AutomergeWireMessage): AutomergeDecodedMessage {
   if (message.type === 'sync') {
     let decoded = Backend.decodeSyncMessage(message.payload);
