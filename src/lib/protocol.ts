@@ -44,11 +44,12 @@ export function receiveMessage(decodedMessage: AutomergeDecodedMessage,
         // if we can't apply these changes yet, hang on to them and request the gaps
         const need = Backend.getMissingDeps(backend, waitingChanges, decodedMessage.message.heads);
         
-        if (need.length === 0 && waitingChanges.length > 0) {
+        if (need.length !== 0) {
+          response.need = [...response.need, ...need];
+        }
+        else if (waitingChanges.length > 0) {
           [backend, patch] = Backend.applyChanges(backend, waitingChanges);
           waitingChanges = [];
-        } else {
-          response.need = response.need.concat(need);  
         }
 
         outboundMessages = [

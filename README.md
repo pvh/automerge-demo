@@ -9,8 +9,7 @@ Svelte App --instantiates--> automerge-store --postMessage--> worker process -- 
 ## TODO
 
  * Persist documents to IndexedDB.
- * Remember sync state with other peers to reduce message overhead.
- * Handle the missing bits of the sync protocol: `need`, and such.
+ * Rethink connection system in terms of peers and not broadcasts
  * How should someone else replace BroadcastChannel with an actual networking solution?
  * How should the Svelte code relate to the Automerge store?
  * Should we bother fixing HMR state preservation? (see hmr-store.js)

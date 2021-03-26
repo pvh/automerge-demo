@@ -1,21 +1,16 @@
 <script lang="ts">
-  import logo from './assets/svelte.png'
+  import { openDoc } from './lib/automerge-store'
   import Counter from './lib/Counter.svelte'
-
-  console.log("running app svelte")
-  import { createOrLoadDoc } from './lib/automerge-store'
   
   interface CounterDoc { count: number }
-
-  let docName = "counter"
-
   let docs = {}
   const addDoc = () => {
-    const doc = createOrLoadDoc(docName)
+    const doc = openDoc(docName)
     doc.change((d: CounterDoc) => d.count = 0)
     docs = {...docs, [docName]: doc}
   }
 
+  let docName = "counter"
 </script>
 
 <main>
@@ -40,11 +35,6 @@
     margin: 0 auto;
   }
 
-  img {
-    height: 16rem;
-    width: 16rem;
-  }
-
   h1 {
     color: #ff3e00;
     text-transform: uppercase;
@@ -55,18 +45,8 @@
     max-width: 14rem;
   }
 
-  p {
-    max-width: 14rem;
-    margin: 1rem auto;
-    line-height: 1.35;
-  }
-
   @media (min-width: 480px) {
     h1 {
-      max-width: none;
-    }
-
-    p {
       max-width: none;
     }
   }

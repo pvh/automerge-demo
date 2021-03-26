@@ -2,11 +2,13 @@ import { writable } from 'svelte/store'
 import { Frontend, ChangeFn } from 'automerge'
 
 import AutomergeWorker from './worker.ts?worker'
+
+  var myWorker = new SharedWorker("worker.js");
 import type { FrontendToBackendMessage, BackendToFrontendMessage } from './types'
 
 const worker = new AutomergeWorker()
 
-export function createOrLoadDoc(docId: string) { 
+export function openDoc(docId: string) { 
   const { subscribe, update } = writable(Frontend.init())
 
   function sendWorkerMessage(worker: Worker, message: FrontendToBackendMessage) {
@@ -14,14 +16,12 @@ export function createOrLoadDoc(docId: string) {
   }
   
   worker.onmessage = (event: MessageEvent) => {
-    console.log(event.data)
     const message: BackendToFrontendMessage = event.data
     // this is wrong -- we should dispatch more deliberately
     if (message.docId === docId) {
       update(doc => Frontend.applyPatch(doc, message.patch))
     }
   }
-  
   
   sendWorkerMessage(worker, {
     type: "OPEN",

@@ -1,7 +1,7 @@
 import { Backend } from "automerge"
 import type { BackendState } from "automerge"
 import type { FrontendToBackendMessage, BackendToFrontendMessage, SyncState, GrossEventDataProtocol } from "./types"
-import { decodeMessage, receiveMessage, encodeMessage } from "./protocol"
+import { encodeMessage, decodeMessage, receiveMessage } from "./protocol"
 
 // ERRRRR
 const workerId = Math.round(Math.random() * 1000)
@@ -11,6 +11,7 @@ const syncStates: { [peerId: string]: SyncState } = {}
 // must we store these on disk? 
 // how are they corrected aside if they go funky aside from somehow successfully syncing the whole repo?
 
+// This function is mostly here to give me type checking on the communication.
 const sendMessageToRenderer = (message: BackendToFrontendMessage) => {
   postMessage(message)
 }
@@ -66,7 +67,8 @@ channel.addEventListener("message", (evt: any) => {
   const backend = backends[docId]
   const syncState = syncStates[source] || { lastSync: [], waitingChanges: [] }
 
-  if (!backend) { console.log(`${docId}? never heard of 'em.`); return }
+  // we aren't tracking this document yet.
+  if (!backend) { return }
 
   const [newBackend, newSyncState, patch, outboundMessages] = receiveMessage(decoded, backend, syncState)
 
