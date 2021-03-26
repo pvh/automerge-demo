@@ -1,32 +1,40 @@
+import { writable } from 'svelte/store'
 import { Frontend, ChangeFn } from 'automerge'
 
-import MyWorker from './worker.ts?worker'
-const worker = new MyWorker()
+import AutomergeWorker from './worker.ts?worker'
+import type { FrontendToBackendMessage, BackendToFrontendMessage } from './types'
 
-import { writable } from 'svelte/store'
+const worker = new AutomergeWorker()
 
-export function createOrLoadDoc(id: string) { 
+export function createOrLoadDoc(docId: string) { 
   const { subscribe, update } = writable(Frontend.init())
 
-  worker.postMessage({
-    type: "CREATE",
-    id
-  });
-
-  worker.onmessage = (e) => {
+  function sendWorkerMessage(worker: Worker, message: FrontendToBackendMessage) {
+    worker.postMessage(message)
+  }
+  
+  worker.onmessage = (event: MessageEvent) => {
+    console.log(event.data)
+    const message: BackendToFrontendMessage = event.data
     // this is wrong -- we should dispatch more deliberately
-    if (e.data.id === id) {
-      update(doc => Frontend.applyPatch(doc, e.data.patch))
+    if (message.docId === docId) {
+      update(doc => Frontend.applyPatch(doc, message.patch))
     }
   }
+  
+  
+  sendWorkerMessage(worker, {
+    type: "OPEN",
+    docId
+  });
 
   function change(changeFn: ChangeFn<unknown>) {
     update(doc => {
-      const [newDoc, change] = Frontend.change(doc, changeFn);
-      worker.postMessage({
-        type: "APPLY_LOCAL_CHANGE",
-        id,
-        payload: change,
+      const [newDoc, changeData] = Frontend.change(doc, changeFn);
+      sendWorkerMessage(worker, {
+        type: "LOCAL_CHANGE",
+        docId,
+        payload: changeData,
       });
       return newDoc
     })

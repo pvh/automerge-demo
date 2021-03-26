@@ -2,6 +2,7 @@
   import logo from './assets/svelte.png'
   import Counter from './lib/Counter.svelte'
 
+  console.log("running app svelte")
   import { createOrLoadDoc } from './lib/automerge-store'
   
   interface CounterDoc { count: number }
@@ -18,7 +19,6 @@
 </script>
 
 <main>
-  <img src={logo} alt="Svelte Logo" />
   <h1>Automerge Demo</h1>
 
   <input bind:value={docName}/>
