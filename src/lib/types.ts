@@ -1,4 +1,4 @@
-import type { Change, Patch, SyncMessage } from 'automerge';
+import type { Change, Patch } from 'automerge';
 
 export type FrontendToBackendMessage = FEBEOpen | FEBELocalChange;
 interface FEBEOpen {
@@ -16,35 +16,9 @@ interface BEFEPatch {
   patch: Patch;
 }
 
-/* a dummy type to prevent accidentally assigning other uint8arrays to this type by accident */
-export type BinaryChange = Uint8Array & { binaryChange: true }
-
-// the message type should be in the message
-interface SyncWireMessage {
-  type: 'sync'
-  payload: Uint8Array
-}
-
-interface ChangeWireMessage {
-  type: 'change'
-  payload: Uint8Array
-}
-
-export type AutomergeWireMessage = SyncWireMessage | ChangeWireMessage
-export type AutomergeDecodedMessage = SyncDecodedMessage | ChangeDecodedMessage
-
-// TODO: What to do with type v. payload
-interface SyncDecodedMessage { type: 'sync', message: SyncMessage } 
-interface ChangeDecodedMessage { type: 'change', message: BinaryChange }
-
-export interface SyncState {
-  lastSync: string[]
-  waitingChanges: BinaryChange[]
-}
-
 export interface GrossEventDataProtocol {
   docId: string,
   source: number,
   target?: number,
-  encoded: AutomergeWireMessage
+  encoded: Uint8Array
 }
