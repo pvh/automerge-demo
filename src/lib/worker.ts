@@ -49,7 +49,6 @@ addEventListener("message", (evt: any) => {
       encoded: { type: "sync", payload: encoded },
     });
   } else if (data.type === "LOCAL_CHANGE") {
-    console.log("LOCAL_CHANGE", data.payload);
     const [newBackend, patch, change] = Backend.applyLocalChange(
       backends[docId],
       data.payload
@@ -72,7 +71,7 @@ addEventListener("message", (evt: any) => {
 
     */
     const decodedChange = decodeChange(change);
-    console.log("CHANGE", change, decodedChange);
+    // Change typing is missing `hash` prop
     db.storeChange(docId, (decodedChange as any).hash, change);
 
     const syncMessage = Backend.encodeSyncMessage(
