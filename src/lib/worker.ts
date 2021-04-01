@@ -1,7 +1,5 @@
-import { Backend, BackendState } from "automerge"
+import { Backend, BackendState, PeerState } from "automerge"
 import type { FrontendToBackendMessage, BackendToFrontendMessage, GrossEventDataProtocol } from "./types"
-import { PeerState, SyncMessageWithChanges, generateSyncMessage, receiveSyncMessage, emptyPeerState } from "./protocol"
-import { decodeSyncMessage } from "automerge/dist/automerge"
 
 // ERRRRR
 const workerId = Math.round(Math.random() * 1000)
@@ -26,16 +24,14 @@ addEventListener("message", (evt: any) => {
 
     // broadcast a request for it. this uses an empty peer state.
     // broadcast: HOW DO
-    const ePeerState: PeerState = emptyPeerState()
-    const [peerState, syncMessage] = generateSyncMessage(backends[docId], ePeerState)
-    const encoded = Backend.encodeSyncMessage(syncMessage)
-    sendMessage({docId, source: workerId, encoded})
+    const ePeerState: PeerState = Backend.emptyPeerState()
+    const [peerState, syncMessage] = Backend.generateSyncMessage(backends[docId], ePeerState)
+    sendMessage({docId, source: workerId, syncMessage})
   }
 });
 
 // In real life, you'd open a websocket or a webRTC thing, or ... something.
 export const channel = new BroadcastChannel('automerge-demo-peer-discovery')
-
 
 // the changes from Backend.syncResponse (et al) could be flavored arrays for type safety
 export function sendMessage(encodedMessage: GrossEventDataProtocol) {
@@ -43,20 +39,27 @@ export function sendMessage(encodedMessage: GrossEventDataProtocol) {
 }
 
 channel.addEventListener("message", (evt: any) => {
-  const { docId, source, target, encoded } = evt.data as GrossEventDataProtocol
+  const { docId, source: peer, target, syncMessage } = evt.data as GrossEventDataProtocol
   // TODO
+  if (target && target != workerId) { return /* ain't for us */ }
 
-  onSyncMessage(source.toString(), docId, encoded)
+  const [nextBackend, nextPeerState, patch] = Backend.receiveSyncMessage(
+    backends[docId], 
+    syncMessage,
+    peerStates[peer])
+  backends[docId] = nextBackend
+  peerStates[peer] = nextPeerState
+
+  peers.forEach((peer) => {
+    let nextMessage
+    [peerStates[peer], nextMessage] = Backend.generateSyncMessage(backends[docId], peerStates[peer])
+    if (nextMessage) { sendMessage({docId, source: workerId, target: peer, syncMessage: nextMessage }) }
+  })
 
   // TODO: batch these until synced
   if (patch) { 
     sendMessageToRenderer({docId, patch})
   }
-
-  backends[docId] = newBackend
-  peerStates[source] = newPeerState
-
-  outboundMessages.forEach((decoded) => sendMessage({docId, source: workerId, target: source, encoded: encodeMessage(decoded)}))
 })
 
 /* wait... which document?
@@ -66,32 +69,6 @@ function onConnect(peer) {
 }
 */
 
-function onLocalChange(docId: string, change: Change) {
-  peers.forEach((peer) => {
-    const [nextPeerState, nextMessage] = generateSyncMessage(backends[docId], peerStates[peer], change)
-    peerStates[peer] = nextPeerState
-    network.send(peer, Backend.encodeSyncMessage(nextMessage))
-  }
-}
-
-type Peer = string
+type Peer = number
 const peers: Peer[] = []
 // what is a network
-
-const network: any = null /*????*/
-network.onSyncMessage = onSyncMessage 
-
-function onSyncMessage(peer: Peer, docId: string, message: SyncMessageWithChanges) {
-  const [nextBackend, nextPeerState] = receiveSyncMessage(
-    backends[docId], 
-    message,
-    peerStates[peer])
-  backends[docId] = nextBackend
-  peerStates[peer] = nextPeerState
-
-  peers.forEach((peer) => {
-    let nextMessage
-    [peerStates[peer], nextMessage] = generateSyncMessage(backends[docId], peerStates[peer])
-    if (nextMessage) { network.send(peer, nextMessage) }
-  })
-}

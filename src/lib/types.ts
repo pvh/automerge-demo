@@ -1,4 +1,4 @@
-import type { Change, Patch } from 'automerge';
+import type { Change, Patch, SyncMessage } from 'automerge';
 
 export type FrontendToBackendMessage = FEBEOpen | FEBELocalChange;
 interface FEBEOpen {
@@ -20,5 +20,5 @@ export interface GrossEventDataProtocol {
   docId: string,
   source: number,
   target?: number,
-  encoded: Uint8Array
+  syncMessage: SyncMessage
 }
