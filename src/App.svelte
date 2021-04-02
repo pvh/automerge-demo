@@ -2,12 +2,11 @@
   import openDoc from './lib/automerge-store'
   import Counter from './lib/Counter.svelte'
   
-  interface CounterDoc { count: number }
   let docs = {}
   const addDoc = () => {
-    const doc = openDoc(docName)
-    doc.change((d: CounterDoc) => d.count = 0)
-    docs = {...docs, [docName]: doc}
+    const doc = openDoc(docName, () => {
+      docs = {...docs, [docName]: doc}
+    })
   }
 
   let docName = "counter"

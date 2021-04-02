@@ -56,7 +56,8 @@ self.addEventListener('message', (evt: any) => {
         encodedChanges
       );
       backends[docId] = newBackend;
-      sendMessageToRenderer({ docId, patch });
+      const isNewDoc = encodedChanges.length === 0;
+      sendMessageToRenderer({ docId, patch, isNewDoc });
     });
 
     // broadcast a request for the document

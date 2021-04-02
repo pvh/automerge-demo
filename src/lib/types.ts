@@ -1,4 +1,5 @@
 import type { BinarySyncMessage, Change, Patch } from 'automerge'
+import type { Change, Patch, SyncMessage } from "automerge";
 
 interface FEBEOpen {
   type: 'OPEN';
@@ -13,6 +14,7 @@ export type FrontendToBackendMessage = FEBEOpen | FEBELocalChange
 interface BEFEPatch {
   docId: string;
   patch: Patch;
+  isNewDoc?: boolean;
 }
 export type BackendToFrontendMessage = BEFEPatch
 
