@@ -14,6 +14,7 @@
     "vite": "^2.1.0"
   },
   "dependencies": {
-    "automerge": "git+https://github.com/automerge/automerge.git#sync-protocol"
+    "automerge": "git+https://github.com/automerge/automerge.git#sync-protocol",
+    "idb": "^6.0.0"
   }
 }

@@ -1,12 +1,19 @@
 <script lang="ts">
   import { openDoc } from './lib/automerge-store'
   import Counter from './lib/Counter.svelte'
+  import { DB } from "./lib/db";
+
+  const db = new DB();
   
   let docs = {}
   const addDoc = () => {
     const doc = openDoc(docName, () => {
       docs = {...docs, [docName]: doc}
     })
+  }
+
+  const saveSnapshot = (id: string) => {
+    db.saveSnapshot(id);
   }
 
   let docName = "counter"
@@ -19,6 +26,7 @@
   <button on:click={addDoc}>Open</button>
   {#each Object.entries(docs) as [id, doc] }
     <Counter {id} {doc}/>
+    <button on:click={() => saveSnapshot(id)}>Save snapshot</button>
   {/each}
 </main>
 

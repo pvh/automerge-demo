@@ -1,84 +1,101 @@
+import { openDB } from "idb";
+import type { IDBPDatabase } from "idb";
+import Automerge from "automerge";
+
 const DB_NAME = "automerge-demo";
 
 export class DB {
-  db: Promise<IDBDatabase>;
+  db: Promise<IDBPDatabase<any>>;
 
   constructor() {
-    this.db = this.init();
-  }
+    this.db = openDB(DB_NAME, 7, {
+      upgrade(db, oldVersion, newVersion, transaction) {
+        // Reset db
+        const storeNames = db.objectStoreNames;
+        for (let i = 0; i < storeNames.length; i++) {
+          db.deleteObjectStore(storeNames.item(i));
+        }
 
-  async init() {
-    const request = indexedDB.open(DB_NAME, 3);
+        const changeStore = db.createObjectStore("changes", {
+          keyPath: "hash",
+        });
+        changeStore.createIndex("docId", "docId", { unique: false });
+        changeStore.createIndex("timestamp", "timestamp", { unique: false });
 
-    request.onerror = function (event) {
-      console.warn("IndexedDB Error", event);
-    };
-
-    const success = new Promise<IDBDatabase>((resolve, reject) => {
-      request.onsuccess = function (event) {
-        const db = request.result;
-        resolve(db);
-      };
+        const snapshotStore = db.createObjectStore("snapshots", {
+          keyPath: "docId",
+        });
+      },
     });
-
-    request.onupgradeneeded = function (event) {
-      const db = request.result;
-
-      const objectStore = db.createObjectStore("docs", { keyPath: "hash" });
-
-      objectStore.createIndex("docId", "docId", { unique: false });
-
-      // objectStore.transaction.oncomplete = function () {
-
-      // };
-    };
-
-    return success;
   }
 
   async storeChange(docId: string, hash: string, change: any) {
     const db = await this.db;
-    const transaction = db.transaction(["docs"], "readwrite");
-    const store = transaction.objectStore("docs");
-    store.add({
+
+    await db.add("changes", {
       docId,
       hash,
       change,
-    });
-
-    return new Promise((resolve, reject) => {
-      transaction.oncomplete = function (event) {
-        resolve(true);
-      };
-
-      transaction.onerror = function (event) {
-        reject();
-      };
+      timestamp: Date.now(),
     });
   }
 
   async getChanges(docId: string) {
-    const db = await this.db;
-    const transaction = db.transaction(["docs"]);
-    const store = transaction.objectStore("docs");
-    const index = store.index("docId");
     const singleKeyRange = IDBKeyRange.only(docId);
-    const request = index.openCursor(singleKeyRange);
+    const db = await this.db;
+    const values = await db.getAllFromIndex("changes", "docId", singleKeyRange);
+    return values.map((v) => v.change);
+  }
 
-    const changes: any[] = [];
+  async getDoc(docId: string) {
+    const db = await this.db;
+    // Get latest snapshot if it exists
+    const snapshot = await db.get("snapshots", docId);
 
-    request.onsuccess = function (event) {
-      const cursor = request.result;
-      if (cursor) {
-        changes.push(cursor.value.change);
-        cursor.continue();
-      }
+    // Get outstanding changes
+    const singleKeyRange = IDBKeyRange.only(docId);
+    const changeRecords = await db.getAllFromIndex(
+      "changes",
+      "docId",
+      singleKeyRange
+    );
+    const changes = changeRecords.map((v) => v.change);
+    // Calc lastChangeTime
+    const lastChangeTime = changeRecords.reduce(
+      (max, rec) => Math.max(rec.timestamp, max),
+      null
+    );
+
+    return {
+      serializedDoc: snapshot?.serializedDoc,
+      changes,
+      lastChangeTime,
     };
+  }
 
-    return new Promise((resolve) => {
-      transaction.oncomplete = function (event) {
-        resolve(changes);
-      };
+  async saveSnapshot(docId: string) {
+    const { serializedDoc, changes, lastChangeTime } = await this.getDoc(docId);
+    // Create AM doc
+    let doc = serializedDoc ? Automerge.load(serializedDoc) : Automerge.init();
+    doc = Automerge.applyChanges(doc, changes);
+    // Serialize and save with timestamp
+    const nextSerializedDoc = Automerge.save(doc);
+    const db = await this.db;
+    await db.put("snapshots", {
+      docId,
+      serializedDoc: nextSerializedDoc,
+      timestamp: Date.now(),
     });
+    // Delete changes before lastChangeTime
+    const oldChangesKeyRange = IDBKeyRange.upperBound(lastChangeTime);
+    const index = db
+      .transaction("changes", "readwrite")
+      .store.index("timestamp");
+
+    let cursor = await index.openCursor(oldChangesKeyRange);
+    while (cursor) {
+      cursor.delete();
+      cursor = await cursor.continue();
+    }
   }
 }

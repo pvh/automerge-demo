@@ -11,7 +11,6 @@ import { DB } from "./db";
 
 // ERRRRR
 const workerId = Math.round(Math.random() * 1000);
-
 const db = new DB();
 
 const backends: { [docId: string]: BackendState } = {};
@@ -31,13 +30,16 @@ addEventListener("message", (evt: any) => {
 
   if (data.type === "OPEN") {
     backends[docId] = Backend.init();
-    db.getChanges(docId).then((encodedChanges: Uint8Array[]) => {
+    db.getDoc(docId).then(({ serializedDoc, changes }) => {
+      backends[docId] = serializedDoc
+        ? Backend.load(serializedDoc)
+        : Backend.init();
       const [newBackend, patch] = Backend.applyChanges(
         backends[docId],
-        encodedChanges
+        changes
       );
       backends[docId] = newBackend;
-      const isNewDoc = encodedChanges.length === 0;
+      const isNewDoc = changes.length === 0;
       sendMessageToRenderer({ docId, patch, isNewDoc });
     });
 
