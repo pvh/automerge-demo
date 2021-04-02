@@ -51,14 +51,18 @@ channel.addEventListener("message", ({data}: any) => {
   if (target && target != workerId) { return /* ain't for us */ }
 
   // think more about reconnection...
-  if (data.type === "HELLO" && !peerStates[peer]) {
-    peerStates[peer] = Backend.emptyPeerState()
-    sendMessage({source: workerId, target: peer, docId: "HELLO", syncMessage: null})  
+  if (data.type === "HELLO") {
+    if (!peerStates[peer]) {
+      peerStates[peer] = Backend.emptyPeerState()
+      sendMessage({source: workerId, target: peer, type: "HELLO"})  
+    }
     return
   }
 
   // it's safe to peel these out now, because we've type-discriminated away the HELLO messages
   const { docId, syncMessage } = data
+
+  if (!backends[docId]) { return }
   
   const [nextBackend, nextPeerState, patch] = Backend.receiveSyncMessage(
     backends[docId], 
