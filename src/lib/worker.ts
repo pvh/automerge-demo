@@ -2,10 +2,10 @@ import { Backend, BackendState, PeerState } from "automerge"
 import type { FrontendToBackendMessage, BackendToFrontendMessage, GrossEventDataProtocol } from "./types"
 
 // ERRRRR
-const workerId = Math.round(Math.random() * 1000)
+const workerId = Math.round(Math.random() * 1000).toString()
 
 const backends: { [docId: string]: BackendState } = {}
-const peerStates: { [peerId: string]: PeerState } = {} 
+const peerStates: { [peerId: string]: PeerState } = {}
 // must we store these on disk? 
 // how are they corrected aside if they go funky aside from somehow successfully syncing the whole repo?
 
@@ -24,25 +24,42 @@ addEventListener("message", (evt: any) => {
 
     // broadcast a request for it. this uses an empty peer state.
     // broadcast: HOW DO
-    const ePeerState: PeerState = Backend.emptyPeerState()
-    const [peerState, syncMessage] = Backend.generateSyncMessage(backends[docId], ePeerState)
-    sendMessage({docId, source: workerId, syncMessage})
+    Object.entries(peerStates).forEach(([peer, peerState]) => {
+      const [nextPeerState, syncMessage] = Backend.generateSyncMessage(backends[docId], peerState)
+      peerStates[peer] = nextPeerState
+      sendMessage({docId, source: workerId, target: peer, syncMessage})  
+    })
   }
 });
 
 // In real life, you'd open a websocket or a webRTC thing, or ... something.
 export const channel = new BroadcastChannel('automerge-demo-peer-discovery')
+sendMessage({source: workerId, type: "HELLO"}) // bit of a hack
+
 
 // the changes from Backend.syncResponse (et al) could be flavored arrays for type safety
-export function sendMessage(encodedMessage: GrossEventDataProtocol) {
-  channel.postMessage(encodedMessage);
+export function sendMessage(message: GrossEventDataProtocol) {
+  console.log(message)
+  channel.postMessage(message);
 }
 
-channel.addEventListener("message", (evt: any) => {
-  const { docId, source: peer, target, syncMessage } = evt.data as GrossEventDataProtocol
+channel.addEventListener("message", ({data}: any) => { 
+  console.log("received", data)
+  const { source: peer, target } = data as GrossEventDataProtocol
+  
   // TODO
   if (target && target != workerId) { return /* ain't for us */ }
 
+  // think more about reconnection...
+  if (data.type === "HELLO" && !peerStates[peer]) {
+    peerStates[peer] = Backend.emptyPeerState()
+    sendMessage({source: workerId, target: peer, docId: "HELLO", syncMessage: null})  
+    return
+  }
+
+  // it's safe to peel these out now, because we've type-discriminated away the HELLO messages
+  const { docId, syncMessage } = data
+  
   const [nextBackend, nextPeerState, patch] = Backend.receiveSyncMessage(
     backends[docId], 
     syncMessage,
@@ -50,7 +67,7 @@ channel.addEventListener("message", (evt: any) => {
   backends[docId] = nextBackend
   peerStates[peer] = nextPeerState
 
-  peers.forEach((peer) => {
+  Object.keys(peerStates).forEach((peer) => {
     let nextMessage
     [peerStates[peer], nextMessage] = Backend.generateSyncMessage(backends[docId], peerStates[peer])
     if (nextMessage) { sendMessage({docId, source: workerId, target: peer, syncMessage: nextMessage }) }
@@ -68,7 +85,3 @@ function onConnect(peer) {
   peer.send(syncMessage)
 }
 */
-
-type Peer = number
-const peers: Peer[] = []
-// what is a network

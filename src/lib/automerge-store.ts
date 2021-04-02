@@ -3,7 +3,6 @@ import { Frontend, ChangeFn } from 'automerge'
 
 import AutomergeWorker from './worker.ts?worker'
 
-  var myWorker = new SharedWorker("worker.js");
 import type { FrontendToBackendMessage, BackendToFrontendMessage } from './types'
 
 const worker = new AutomergeWorker()

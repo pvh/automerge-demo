@@ -16,9 +16,17 @@ interface BEFEPatch {
   patch: Patch;
 }
 
-export interface GrossEventDataProtocol {
+interface SyncMessageComms {
   docId: string,
-  source: number,
-  target?: number,
+  source: string,
+  target: string,
   syncMessage: SyncMessage
 }
+
+interface HelloMessage {
+  type: "HELLO" 
+  source: string,
+  target?: string,
+}
+
+export type GrossEventDataProtocol = SyncMessageComms | HelloMessage 
