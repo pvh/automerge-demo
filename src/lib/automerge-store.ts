@@ -9,6 +9,10 @@ import type {
   BackendToFrontendMessage,
 } from "./types";
 
+interface CounterDoc {
+  count: number;
+}
+
 const worker = new AutomergeWorker();
 
 // const urlParams = new URLSearchParams(window.location.search);
@@ -17,8 +21,9 @@ const worker = new AutomergeWorker();
 //   const persistenceWorker = new PersistenceWorker();
 // }
 
-export function openDoc(docId: string) {
-  const { subscribe, update } = writable(Frontend.init());
+export function openDoc(docId: string, onOpen: () => any) {
+  const { subscribe, update } = writable(Frontend.init<CounterDoc>());
+  let hasOpened = false;
 
   function sendWorkerMessage(
     worker: Worker,
@@ -31,7 +36,14 @@ export function openDoc(docId: string) {
     const message: BackendToFrontendMessage = event.data;
     // this is wrong -- we should dispatch more deliberately
     if (message.docId === docId) {
-      update((doc) => Frontend.applyPatch(doc, message.patch));
+      if (message.isNewDoc) {
+        change((doc) => (doc.count = 0));
+      } else update((doc) => Frontend.applyPatch(doc, message.patch));
+
+      if (!hasOpened) {
+        hasOpened = true;
+        onOpen();
+      }
     }
   };
 
@@ -40,7 +52,7 @@ export function openDoc(docId: string) {
     docId,
   });
 
-  function change(changeFn: ChangeFn<unknown>) {
+  function change(changeFn: ChangeFn<CounterDoc>) {
     update((doc) => {
       const [newDoc, changeData] = Frontend.change(doc, changeFn);
       sendWorkerMessage(worker, {

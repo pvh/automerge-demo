@@ -37,7 +37,8 @@ addEventListener("message", (evt: any) => {
         encodedChanges
       );
       backends[docId] = newBackend;
-      sendMessageToRenderer({ docId, patch });
+      const isNewDoc = encodedChanges.length === 0;
+      sendMessageToRenderer({ docId, patch, isNewDoc });
     });
 
     // broadcast a request for it
@@ -65,11 +66,6 @@ addEventListener("message", (evt: any) => {
       encoded: { type: "change", payload: change },
     });
 
-    /*
-      docId,
-      change,
-
-    */
     const decodedChange = decodeChange(change);
     // Change typing is missing `hash` prop
     db.storeChange(docId, (decodedChange as any).hash, change);
