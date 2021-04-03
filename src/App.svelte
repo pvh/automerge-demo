@@ -12,10 +12,6 @@
     })
   }
 
-  const saveSnapshot = (id: string) => {
-    db.saveSnapshot(id);
-  }
-
   let docName = "counter"
 </script>
 
@@ -26,7 +22,6 @@
   <button on:click={addDoc}>Open</button>
   {#each Object.entries(docs) as [id, doc] }
     <Counter {id} {doc}/>
-    <button on:click={() => saveSnapshot(id)}>Save snapshot</button>
   {/each}
 </main>
 
