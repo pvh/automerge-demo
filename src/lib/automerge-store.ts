@@ -2,7 +2,7 @@ import { writable } from "svelte/store";
 import { Frontend, ChangeFn } from "automerge";
 
 import AutomergeWorker from "./worker.ts?worker";
-// import PersistenceWorker from "./shared-worker.ts?worker";
+import PersistenceWorker from "./shared-worker.ts?worker";
 
 import type { FrontendToBackendMessage, BackendToFrontendMessage } from './types'
 
@@ -11,11 +11,13 @@ interface CounterDoc {
   count: number;
 }
 
+const urlParams = new URLSearchParams(window.location.search);
+const shouldStartPersistenceWorker = urlParams.get("persistence") === "true";
+if (shouldStartPersistenceWorker) {
+  const persistenceWorker = new PersistenceWorker();
+}
 export default function openDoc(docId: string) {
-  const { subscribe, update } = writable(Frontend.init())
-
-export function openDoc(docId: string, onOpen: () => any) {
-  const { subscribe, update } = writable(Frontend.init<CounterDoc>());
+  const { subscribe, update } = writable(Frontend.init<CounterDoc>())
   let hasOpened = false;
 
   function sendWorkerMessage(

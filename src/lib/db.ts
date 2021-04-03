@@ -4,6 +4,9 @@ import Automerge from "automerge";
 
 const DB_NAME = "automerge-demo";
 
+// The limit of changes to keep before db.saveSnapshot will do serialization
+const MAX_CHANGES_TO_KEEP = 100;
+
 export class DB {
   db: Promise<IDBPDatabase<any>>;
 
@@ -66,6 +69,8 @@ export class DB {
       null
     );
 
+    console.log(docId, changes);
+
     return {
       serializedDoc: snapshot?.serializedDoc,
       changes,
@@ -75,6 +80,8 @@ export class DB {
 
   async saveSnapshot(docId: string) {
     const { serializedDoc, changes, lastChangeTime } = await this.getDoc(docId);
+    // Bail out of saving snapshot if changes are under threshold
+    if (changes.length < MAX_CHANGES_TO_KEEP) return;
     // Create AM doc
     let doc = serializedDoc ? Automerge.load(serializedDoc) : Automerge.init();
     doc = Automerge.applyChanges(doc, changes);
