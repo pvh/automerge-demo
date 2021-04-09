@@ -22,11 +22,23 @@ addEventListener("message", (evt: any) => {
   if (data.type === "OPEN") {
     backends[docId] = Backend.init();
 
-    // broadcast a request for it. this uses an empty peer state.
-    // broadcast: HOW DO
+    // broadcast a request for the document
     Object.entries(peerStates).forEach(([peer, peerState]) => {
       const [nextPeerState, syncMessage] = Backend.generateSyncMessage(backends[docId], peerState)
       peerStates[peer] = nextPeerState
+      console.log('open message', syncMessage)
+      sendMessage({docId, source: workerId, target: peer, syncMessage})  
+    })
+  }
+
+  // broadcast the change
+  if (data.type === "LOCAL_CHANGE") {
+    let patch, change
+    [backends[docId], patch, change] = Backend.applyLocalChange(backends[docId], data.payload)
+    Object.entries(peerStates).forEach(([peer, peerState]) => {
+      const [nextPeerState, syncMessage] = Backend.generateSyncMessage(backends[docId], peerState)
+      peerStates[peer] = nextPeerState
+      console.log('local change message', syncMessage)
       sendMessage({docId, source: workerId, target: peer, syncMessage})  
     })
   }
@@ -44,7 +56,7 @@ export function sendMessage(message: GrossEventDataProtocol) {
 }
 
 channel.addEventListener("message", ({data}: any) => { 
-  console.log("received", data)
+  console.log("received", data, data.syncMessage)
   const { source: peer, target } = data as GrossEventDataProtocol
   
   // TODO
@@ -52,8 +64,8 @@ channel.addEventListener("message", ({data}: any) => {
 
   // think more about reconnection...
   if (data.type === "HELLO") {
-    if (!peerStates[peer]) {
-      peerStates[peer] = Backend.emptyPeerState()
+    if (peerStates[peer] === undefined) {
+      peerStates[peer] = null
       sendMessage({source: workerId, target: peer, type: "HELLO"})  
     }
     return
@@ -73,7 +85,7 @@ channel.addEventListener("message", ({data}: any) => {
 
   Object.keys(peerStates).forEach((peer) => {
     let nextMessage
-    [peerStates[peer], nextMessage] = Backend.generateSyncMessage(backends[docId], peerStates[peer])
+    ;[peerStates[peer], nextMessage] = Backend.generateSyncMessage(backends[docId], peerStates[peer])
     if (nextMessage) { sendMessage({docId, source: workerId, target: peer, syncMessage: nextMessage }) }
   })
 
@@ -82,10 +94,3 @@ channel.addEventListener("message", ({data}: any) => {
     sendMessageToRenderer({docId, patch})
   }
 })
-
-/* wait... which document?
-function onConnect(peer) {
-  const [peerState, syncMessage] = generateSyncMessage(backends[], peerStates[peer])
-  peer.send(syncMessage)
-}
-*/
