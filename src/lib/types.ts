@@ -1,4 +1,4 @@
-import type { Change, Patch, SyncMessage } from 'automerge';
+import type { BinarySyncMessage, Change, Patch } from 'automerge';
 
 export type FrontendToBackendMessage = FEBEOpen | FEBELocalChange;
 interface FEBEOpen {
@@ -20,7 +20,7 @@ interface SyncMessageComms {
   docId: string,
   source: string,
   target: string,
-  syncMessage: SyncMessage
+  syncMessage: BinarySyncMessage
 }
 
 interface HelloMessage {

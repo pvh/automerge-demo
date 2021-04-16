@@ -33,8 +33,8 @@ addEventListener("message", (evt: any) => {
 
   // broadcast the change
   if (data.type === "LOCAL_CHANGE") {
-    let patch, change
-    [backends[docId], patch, change] = Backend.applyLocalChange(backends[docId], data.payload)
+    const [newBackend, patch, change] = Backend.applyLocalChange(backends[docId], data.payload)
+    backends[docId] = newBackend
     Object.entries(peerStates).forEach(([peer, peerState]) => {
       const [nextPeerState, syncMessage] = Backend.generateSyncMessage(backends[docId], peerState)
       peerStates[peer] = nextPeerState
