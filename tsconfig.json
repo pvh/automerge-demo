@@ -24,5 +24,5 @@
    * Use globals.d.ts instead of compilerOptions.types
    * to avoid limiting type declarations.
    */
-  "include": ["globals.d.ts", "src/**/*.ts", "src/**/*.js", "src/**/*.svelte", "node_modules/automerge/dist/*"]
+  "include": ["globals.d.ts", "src/**/*.ts", "src/**/*.js", "src/**/*.svelte"]
 }

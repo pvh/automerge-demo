@@ -1,11 +1,11 @@
-import { Backend, BackendState, PeerState } from "automerge"
+import { Backend, BackendState, SyncState } from "automerge"
 import type { FrontendToBackendMessage, BackendToFrontendMessage, GrossEventDataProtocol } from "./types"
 
 // ERRRRR
 const workerId = Math.round(Math.random() * 1000).toString()
 
 const backends: { [docId: string]: BackendState } = {}
-const peerStates: { [peerId: string]: PeerState } = {}
+const peerStates: { [peerId: string]: SyncState } = {}
 // must we store these on disk? 
 // how are they corrected aside if they go funky aside from somehow successfully syncing the whole repo?
 
@@ -34,11 +34,12 @@ addEventListener("message", (evt: any) => {
   // broadcast the change
   if (data.type === "LOCAL_CHANGE") {
     const [newBackend, patch, change] = Backend.applyLocalChange(backends[docId], data.payload)
+    sendMessageToRenderer({docId, patch})
+
     backends[docId] = newBackend
     Object.entries(peerStates).forEach(([peer, peerState]) => {
       const [nextPeerState, syncMessage] = Backend.generateSyncMessage(backends[docId], peerState)
       peerStates[peer] = nextPeerState
-      console.log('local change message', syncMessage)
       sendMessage({docId, source: workerId, target: peer, syncMessage})  
     })
   }
@@ -51,12 +52,10 @@ sendMessage({source: workerId, type: "HELLO"}) // bit of a hack
 
 // the changes from Backend.syncResponse (et al) could be flavored arrays for type safety
 export function sendMessage(message: GrossEventDataProtocol) {
-  console.log(message)
   channel.postMessage(message);
 }
 
 channel.addEventListener("message", ({data}: any) => { 
-  console.log("received", data, data.syncMessage)
   const { source: peer, target } = data as GrossEventDataProtocol
   
   // TODO
@@ -65,7 +64,7 @@ channel.addEventListener("message", ({data}: any) => {
   // think more about reconnection...
   if (data.type === "HELLO") {
     if (peerStates[peer] === undefined) {
-      peerStates[peer] = null
+      peerStates[peer] = Backend.initSyncState()
       sendMessage({source: workerId, target: peer, type: "HELLO"})  
     }
     return
@@ -78,8 +77,8 @@ channel.addEventListener("message", ({data}: any) => {
   
   const [nextBackend, nextPeerState, patch] = Backend.receiveSyncMessage(
     backends[docId], 
-    syncMessage,
-    peerStates[peer])
+    peerStates[peer], 
+    syncMessage)
   backends[docId] = nextBackend
   peerStates[peer] = nextPeerState
 
