@@ -5,7 +5,7 @@ import type { FrontendToBackendMessage, BackendToFrontendMessage, GrossEventData
 const workerId = Math.round(Math.random() * 1000).toString()
 
 const backends: { [docId: string]: BackendState } = {}
-const peerStates: { [peerId: string]: SyncState } = {}
+const syncStates: { [peerId: string]: SyncState } = {}
 // must we store these on disk? 
 // how are they corrected aside if they go funky aside from somehow successfully syncing the whole repo?
 
@@ -23,9 +23,9 @@ addEventListener("message", (evt: any) => {
     backends[docId] = Backend.init();
 
     // broadcast a request for the document
-    Object.entries(peerStates).forEach(([peer, peerState]) => {
-      const [nextPeerState, syncMessage] = Backend.generateSyncMessage(backends[docId], peerState)
-      peerStates[peer] = nextPeerState
+    Object.entries(syncStates).forEach(([peer, syncState]) => {
+      const [nextSyncState, syncMessage] = Backend.generateSyncMessage(backends[docId], syncState)
+      syncStates[peer] = nextSyncState
       console.log('open message', syncMessage)
       sendMessage({docId, source: workerId, target: peer, syncMessage})  
     })
@@ -37,9 +37,9 @@ addEventListener("message", (evt: any) => {
     sendMessageToRenderer({docId, patch})
 
     backends[docId] = newBackend
-    Object.entries(peerStates).forEach(([peer, peerState]) => {
-      const [nextPeerState, syncMessage] = Backend.generateSyncMessage(backends[docId], peerState)
-      peerStates[peer] = nextPeerState
+    Object.entries(syncStates).forEach(([peer, syncState]) => {
+      const [nextSyncState, syncMessage] = Backend.generateSyncMessage(backends[docId], syncState)
+      syncStates[peer] = nextSyncState
       sendMessage({docId, source: workerId, target: peer, syncMessage})  
     })
   }
@@ -63,8 +63,8 @@ channel.addEventListener("message", ({data}: any) => {
 
   // think more about reconnection...
   if (data.type === "HELLO") {
-    if (peerStates[peer] === undefined) {
-      peerStates[peer] = Backend.initSyncState()
+    if (syncStates[peer] === undefined) {
+      syncStates[peer] = Backend.initSyncState()
       sendMessage({source: workerId, target: peer, type: "HELLO"})  
     }
     return
@@ -75,16 +75,16 @@ channel.addEventListener("message", ({data}: any) => {
 
   if (!backends[docId]) { return }
   
-  const [nextBackend, nextPeerState, patch] = Backend.receiveSyncMessage(
+  const [nextBackend, nextSyncState, patch] = Backend.receiveSyncMessage(
     backends[docId], 
-    peerStates[peer], 
+    syncStates[peer], 
     syncMessage)
   backends[docId] = nextBackend
-  peerStates[peer] = nextPeerState
+  syncStates[peer] = nextSyncState
 
-  Object.keys(peerStates).forEach((peer) => {
+  Object.keys(syncStates).forEach((peer) => {
     let nextMessage
-    ;[peerStates[peer], nextMessage] = Backend.generateSyncMessage(backends[docId], peerStates[peer])
+    ;[syncStates[peer], nextMessage] = Backend.generateSyncMessage(backends[docId], syncStates[peer])
     if (nextMessage) { sendMessage({docId, source: workerId, target: peer, syncMessage: nextMessage }) }
   })
 
