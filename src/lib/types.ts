@@ -9,12 +9,12 @@ interface FEBELocalChange {
   docId: string;
   payload: Change;
 }
-export type FrontendToBackendMessage = FEBEOpen | FEBELocalChange;
+export type FrontendToBackendMessage = FEBEOpen | FEBELocalChange
 interface BEFEPatch {
   docId: string;
   patch: Patch;
 }
-export type BackendToFrontendMessage = BEFEPatch;
+export type BackendToFrontendMessage = BEFEPatch
 
 interface SyncMessageComms {
   docId: string,

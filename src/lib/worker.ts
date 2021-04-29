@@ -8,7 +8,7 @@ declare const self: WorkerGlobalScope
 const workerId = Math.round(Math.random() * 1000).toString()
 
 const backends: { [docId: string]: BackendState } = {}
-const syncStates: { [peerId: string]: SyncState } = {}
+const syncStates: { [peerId: string]: { [docId: string]: SyncState } } = {}
 
 // In real life, you'd open a websocket or a webRTC thing, or ... something.
 export const channel = new BroadcastChannel('automerge-demo-peer-discovery')
@@ -32,8 +32,11 @@ self.addEventListener('message', (evt: any) => {
 
     // broadcast a request for the document
     Object.entries(syncStates).forEach(([peer, syncState]) => {
-      const [nextSyncState, syncMessage] = Backend.generateSyncMessage(backends[docId], syncState)
-      syncStates[peer] = nextSyncState
+      const [nextSyncState, syncMessage] = Backend.generateSyncMessage(
+        backends[docId],
+        syncState[docId] || Backend.initSyncState(),
+      )
+      syncStates[peer] = { ...syncStates[peer], [docId]: nextSyncState }
       sendMessage({
         docId, source: workerId, target: peer, syncMessage,
       })
@@ -47,8 +50,11 @@ self.addEventListener('message', (evt: any) => {
 
     backends[docId] = newBackend
     Object.entries(syncStates).forEach(([peer, syncState]) => {
-      const [nextSyncState, syncMessage] = Backend.generateSyncMessage(backends[docId], syncState)
-      syncStates[peer] = nextSyncState
+      const [nextSyncState, syncMessage] = Backend.generateSyncMessage(
+        backends[docId],
+        syncState[docId] || Backend.initSyncState(),
+      )
+      syncStates[peer] = { ...syncStates[peer], [docId]: nextSyncState }
       sendMessage({
         docId, source: workerId, target: peer, syncMessage,
       })
@@ -64,7 +70,7 @@ channel.addEventListener('message', ({ data }: any) => {
   // think more about reconnection...
   if (data.type === 'HELLO') {
     if (syncStates[source] === undefined) {
-      syncStates[source] = Backend.initSyncState()
+      syncStates[source] = {}
       sendMessage({ source: workerId, target: source, type: 'HELLO' })
     }
     return
@@ -77,18 +83,22 @@ channel.addEventListener('message', ({ data }: any) => {
 
   const [nextBackend, nextSyncState, patch] = Backend.receiveSyncMessage(
     backends[docId],
-    syncStates[source],
+    syncStates[source][docId] || Backend.initSyncState(),
     syncMessage,
   )
   backends[docId] = nextBackend
-  syncStates[source] = nextSyncState
+  syncStates[source] = { ...syncStates[source], [docId]: nextSyncState }
 
   Object.keys(syncStates).forEach((peer) => {
-    let nextMessage;
-    [syncStates[peer], nextMessage] = Backend.generateSyncMessage(backends[docId], syncStates[peer])
-    if (nextMessage) {
+    const [nextPeerSyncState, nextPeerMessage] = Backend.generateSyncMessage(
+      backends[docId],
+      syncStates[peer][docId] || Backend.initSyncState(),
+    )
+    syncStates[peer] = { ...syncStates[peer], [docId]: nextPeerSyncState }
+
+    if (nextPeerMessage) {
       sendMessage({
-        docId, source: workerId, target: peer, syncMessage: nextMessage,
+        docId, source: workerId, target: peer, syncMessage: nextPeerMessage,
       })
     }
   })
