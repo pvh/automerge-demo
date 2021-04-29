@@ -4,16 +4,22 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "serve": "vite preview"
+    "serve": "vite preview",
+    "lint": "eslint . --ext ts"
   },
   "devDependencies": {
     "@svitejs/vite-plugin-svelte": "^0.11.1",
-    "svelte": "^3.35.0",
+    "@typescript-eslint/eslint-plugin": "^4.22.0",
+    "@typescript-eslint/parser": "^4.22.0",
+    "eslint": "^7.25.0",
+    "eslint-config-airbnb-base": "^14.2.1",
+    "eslint-plugin-import": "^2.22.1",
     "svelte-preprocess": "^4.6.9",
     "typescript": "^4.2.3",
     "vite": "^2.1.0"
   },
   "dependencies": {
-    "automerge": "https://github.com/automerge/automerge#sync-protocol-3"
+    "automerge": "https://github.com/automerge/automerge#sync-protocol-3",
+    "svelte": "^3.35.0"
   }
 }

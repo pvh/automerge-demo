@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { openDoc } from './lib/automerge-store'
+  import openDoc from './lib/automerge-store'
   import Counter from './lib/Counter.svelte'
   
   interface CounterDoc { count: number }

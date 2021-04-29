@@ -1,20 +1,20 @@
-import type { BinarySyncMessage, Change, Patch } from 'automerge';
+import type { BinarySyncMessage, Change, Patch } from 'automerge'
 
-export type FrontendToBackendMessage = FEBEOpen | FEBELocalChange;
 interface FEBEOpen {
-  type: "OPEN";
+  type: 'OPEN';
   docId: string;
 }
 interface FEBELocalChange {
-  type: "LOCAL_CHANGE";
+  type: 'LOCAL_CHANGE';
   docId: string;
   payload: Change;
 }
-export type BackendToFrontendMessage = BEFEPatch;
+export type FrontendToBackendMessage = FEBEOpen | FEBELocalChange;
 interface BEFEPatch {
   docId: string;
   patch: Patch;
 }
+export type BackendToFrontendMessage = BEFEPatch;
 
 interface SyncMessageComms {
   docId: string,
@@ -24,9 +24,9 @@ interface SyncMessageComms {
 }
 
 interface HelloMessage {
-  type: "HELLO" 
+  type: 'HELLO'
   source: string,
   target?: string,
 }
 
-export type GrossEventDataProtocol = SyncMessageComms | HelloMessage 
+export type GrossEventDataProtocol = SyncMessageComms | HelloMessage
