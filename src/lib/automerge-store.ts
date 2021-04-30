@@ -1,8 +1,8 @@
-import { writable } from "svelte/store";
-import { Frontend, ChangeFn } from "automerge";
+import { writable } from 'svelte/store'
+import { Frontend, ChangeFn } from 'automerge'
 
-import AutomergeWorker from "./worker.ts?worker";
-import PersistenceWorker from "./shared-worker.ts?worker";
+import AutomergeWorker from './worker.ts?worker'
+import PersistenceWorker from './shared-worker.ts?worker'
 
 import type { FrontendToBackendMessage, BackendToFrontendMessage } from './types'
 
@@ -11,41 +11,22 @@ interface CounterDoc {
   count: number;
 }
 
-const urlParams = new URLSearchParams(window.location.search);
-const shouldStartPersistenceWorker = urlParams.get("persistence") === "true";
+const urlParams = new URLSearchParams(window.location.search)
+const shouldStartPersistenceWorker = urlParams.get('persistence') === 'true'
 if (shouldStartPersistenceWorker) {
-  const persistenceWorker = new PersistenceWorker();
+  const persistenceWorker = new PersistenceWorker()
 }
+
 export default function openDoc(docId: string) {
   const { subscribe, update } = writable(Frontend.init<CounterDoc>())
-  let hasOpened = false;
+  let hasOpened = false
 
   function sendWorkerMessage(
     worker: Worker,
-    message: FrontendToBackendMessage
+    message: FrontendToBackendMessage,
   ) {
-    worker.postMessage(message);
+    worker.postMessage(message)
   }
-
-  automergeWorker.onmessage = (event: MessageEvent) => {
-    const message: BackendToFrontendMessage = event.data
-    // this is wrong -- we should dispatch more deliberately
-    if (message.docId === docId) {
-      if (message.isNewDoc) {
-        change((doc) => (doc.count = 0));
-      } else update((doc) => Frontend.applyPatch(doc, message.patch));
-
-      if (!hasOpened) {
-        hasOpened = true;
-        onOpen();
-      }
-    }
-  }
-
-  sendWorkerMessage(automergeWorker, {
-    type: 'OPEN',
-    docId,
-  })
 
   function change(changeFn: ChangeFn<CounterDoc>) {
     update((doc) => {
@@ -58,6 +39,27 @@ export default function openDoc(docId: string) {
       return newDoc
     })
   }
+
+  automergeWorker.onmessage = (event: MessageEvent) => {
+    const message: BackendToFrontendMessage = event.data
+
+    // this is wrong -- we should dispatch more deliberately
+    if (message.docId === docId) {
+      if (message.isNewDoc) {
+        change((doc) => { doc.count = 0 })
+      } else update((doc) => Frontend.applyPatch(doc, message.patch))
+
+      if (!hasOpened) {
+        hasOpened = true
+        onOpen()
+      }
+    }
+  }
+
+  sendWorkerMessage(automergeWorker, {
+    type: 'OPEN',
+    docId,
+  })
 
   return {
     subscribe,

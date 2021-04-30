@@ -1,5 +1,6 @@
-import type { BinarySyncMessage, Change, Patch } from 'automerge'
-import type { Change, Patch, SyncMessage } from "automerge";
+import type {
+  BinarySyncMessage, Change, Patch,
+} from 'automerge'
 
 interface FEBEOpen {
   type: 'OPEN';

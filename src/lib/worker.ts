@@ -1,6 +1,9 @@
 /* eslint-env worker */
-import { Backend, BackendState, BinaryChange, SyncState } from 'automerge'
+import {
+  Backend, BackendState, decodeChange, SyncState,
+} from 'automerge'
 import type { BackendToFrontendMessage, GrossEventDataProtocol } from './types'
+import { DB } from './db'
 
 declare const self: WorkerGlobalScope
 
@@ -12,30 +15,17 @@ const syncStates: { [peerId: string]: { [docId: string]: SyncState } } = {}
 
 // In real life, you'd open a websocket or a webRTC thing, or ... something.
 export const channel = new BroadcastChannel('automerge-demo-peer-discovery')
-import { Backend, decodeChange } from "automerge";
-import type { BackendState } from "automerge";
-import type {
-  FrontendToBackendMessage,
-  BackendToFrontendMessage,
-  SyncState,
-  GrossEventDataProtocol,
-} from "./types";
-import { encodeMessage, decodeMessage, receiveMessage } from "./protocol";
-import { DB } from "./db";
 
-// ERRRRR
-const workerId = Math.round(Math.random() * 1000);
-const db = new DB();
+const db = new DB()
 
-const backends: { [docId: string]: BackendState } = {};
-const syncStates: { [peerId: string]: SyncState } = {};
 // must we store these on disk?
-// how are they corrected aside if they go funky aside from somehow successfully syncing the whole repo?
+// how are they corrected aside if they go funky aside from somehow
+// successfully syncing the whole repo?
 
 // This function is mostly here to give me type checking on the communication.
 const sendMessageToRenderer = (message: BackendToFrontendMessage) => {
-  postMessage(message);
-};
+  postMessage(message)
+}
 
 export function sendMessage(message: GrossEventDataProtocol) {
   channel.postMessage(message)
@@ -48,21 +38,18 @@ self.addEventListener('message', (evt: any) => {
 
   if (data.type === 'OPEN') {
     backends[docId] = Backend.init()
-
-  if (data.type === "OPEN") {
-    backends[docId] = Backend.init();
     db.getDoc(docId).then(({ serializedDoc, changes }) => {
       backends[docId] = serializedDoc
         ? Backend.load(serializedDoc)
-        : Backend.init();
+        : Backend.init()
       const [newBackend, patch] = Backend.applyChanges(
         backends[docId],
-        changes
-      );
-      backends[docId] = newBackend;
-      const isNewDoc = changes.length === 0;
-      sendMessageToRenderer({ docId, patch, isNewDoc });
-    });
+        changes,
+      )
+      backends[docId] = newBackend
+      const isNewDoc = changes.length === 0
+      sendMessageToRenderer({ docId, patch, isNewDoc })
+    })
 
     // broadcast a request for the document
     Object.entries(syncStates).forEach(([peer, syncState]) => {

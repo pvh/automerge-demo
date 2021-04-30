@@ -20,6 +20,7 @@
         "semi": ["error", "never"],
         "@typescript-eslint/semi": ["error", "never"],
         "import/no-unresolved": "off", /* it wasn't recognizing things vite builds */
-        "import/extensions": "off" /* same */
+        "import/extensions": "off", /* same */
+        "no-param-reassign": "off"
     }
 }
