@@ -21,9 +21,11 @@ function broadcast () {
       syncState[docId] || Backend.initSyncState(),
     )
     syncStates[peer] = { ...syncStates[peer], [docId]: nextSyncState }
-    sendMessage({
-      docId, source: workerId, target: peer, syncMessage,
-    })
+    if (syncMessage) { 
+      sendMessage({
+        docId, source: workerId, target: peer, syncMessage,
+      })
+    }
   })
 }
 
