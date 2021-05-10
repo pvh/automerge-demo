@@ -31,6 +31,21 @@ export function sendMessage(message: GrossEventDataProtocol) {
   channel.postMessage(message)
 }
 
+function updatePeers(docId: string) {
+  Object.entries(syncStates).forEach(([peer, syncState]) => {
+    const [nextSyncState, syncMessage] = Backend.generateSyncMessage(
+      backends[docId],
+      syncState[docId] || Backend.initSyncState(),
+    )
+    syncStates[peer] = { ...syncStates[peer], [docId]: nextSyncState }
+    if (syncMessage) {
+      sendMessage({
+        docId, source: workerId, target: peer, syncMessage,
+      })
+    }
+  })
+}
+
 // Respond to messages from the frontend document
 self.addEventListener('message', (evt: any) => {
   const { data } = evt
@@ -50,21 +65,8 @@ self.addEventListener('message', (evt: any) => {
       const isNewDoc = changes.length === 0
       sendMessageToRenderer({ docId, patch, isNewDoc })
     })
-
-    // broadcast a request for the document
-    Object.entries(syncStates).forEach(([peer, syncState]) => {
-      const [nextSyncState, syncMessage] = Backend.generateSyncMessage(
-        backends[docId],
-        syncState[docId] || Backend.initSyncState(),
-      )
-      syncStates[peer] = { ...syncStates[peer], [docId]: nextSyncState }
-      sendMessage({
-        docId, source: workerId, target: peer, syncMessage,
-      })
-    })
   }
 
-  // broadcast the change
   if (data.type === 'LOCAL_CHANGE') {
     const [newBackend, patch, change] = Backend.applyLocalChange(backends[docId], data.payload)
     sendMessageToRenderer({ docId, patch })
@@ -73,19 +75,13 @@ self.addEventListener('message', (evt: any) => {
     db.storeChange(docId, (decodedChange as any).hash, change)
 
     backends[docId] = newBackend
-    Object.entries(syncStates).forEach(([peer, syncState]) => {
-      const [nextSyncState, syncMessage] = Backend.generateSyncMessage(
-        backends[docId],
-        syncState[docId] || Backend.initSyncState(),
-      )
-      syncStates[peer] = { ...syncStates[peer], [docId]: nextSyncState }
-      sendMessage({
-        docId, source: workerId, target: peer, syncMessage,
-      })
-    })
   }
+
+  // now tell everyone else about how things have changed
+  updatePeers(docId)
 })
 
+// Respond to messages from other peers
 channel.addEventListener('message', ({ data }: any) => {
   const { source, target } = data as GrossEventDataProtocol
 
@@ -113,19 +109,7 @@ channel.addEventListener('message', ({ data }: any) => {
   backends[docId] = nextBackend
   syncStates[source] = { ...syncStates[source], [docId]: nextSyncState }
 
-  Object.keys(syncStates).forEach((peer) => {
-    const [nextPeerSyncState, nextPeerMessage] = Backend.generateSyncMessage(
-      backends[docId],
-      syncStates[peer][docId] || Backend.initSyncState(),
-    )
-    syncStates[peer] = { ...syncStates[peer], [docId]: nextPeerSyncState }
-
-    if (nextPeerMessage) {
-      sendMessage({
-        docId, source: workerId, target: peer, syncMessage: nextPeerMessage,
-      })
-    }
-  })
+  updatePeers(docId)
 
   // TODO: batch these until synced
   if (patch) {
