@@ -17,7 +17,7 @@ if (shouldStartPersistenceWorker) {
   const persistenceWorker = new PersistenceWorker()
 }
 
-export default function openDoc(docId: string) {
+export default function openDoc(docId: string, onOpen: () => any) {
   const { subscribe, update } = writable(Frontend.init<CounterDoc>())
   let hasOpened = false
 
