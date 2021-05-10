@@ -13,22 +13,6 @@ const syncStates: { [peerId: string]: { [docId: string]: SyncState } } = {}
 // In real life, you'd open a websocket or a webRTC thing, or ... something.
 export const channel = new BroadcastChannel('automerge-demo-peer-discovery')
 
-function broadcast () {
-  // broadcast a request for the document
-  Object.entries(syncStates).forEach(([peer, syncState]) => {
-    const [nextSyncState, syncMessage] = Backend.generateSyncMessage(
-      backends[docId],
-      syncState[docId] || Backend.initSyncState(),
-    )
-    syncStates[peer] = { ...syncStates[peer], [docId]: nextSyncState }
-    if (syncMessage) { 
-      sendMessage({
-        docId, source: workerId, target: peer, syncMessage,
-      })
-    }
-  })
-}
-
 // This function is mostly here to give me type checking on the communication.
 const sendMessageToRenderer = (message: BackendToFrontendMessage) => {
   postMessage(message)
@@ -38,6 +22,21 @@ export function sendMessage(message: GrossEventDataProtocol) {
   channel.postMessage(message)
 }
 
+function updatePeers(docId: string) {
+  Object.entries(syncStates).forEach(([peer, syncState]) => {
+    const [nextSyncState, syncMessage] = Backend.generateSyncMessage(
+      backends[docId],
+      syncState[docId] || Backend.initSyncState(),
+    )
+    syncStates[peer] = { ...syncStates[peer], [docId]: nextSyncState }
+    if (syncMessage) {
+      sendMessage({
+        docId, source: workerId, target: peer, syncMessage,
+      })
+    }
+  })
+}
+
 // Respond to messages from the frontend document
 self.addEventListener('message', (evt: any) => {
   const { data } = evt
@@ -45,19 +44,19 @@ self.addEventListener('message', (evt: any) => {
 
   if (data.type === 'OPEN') {
     backends[docId] = Backend.init()
-    broadcast()
   }
 
-  // broadcast the change
   if (data.type === 'LOCAL_CHANGE') {
     const [newBackend, patch] = Backend.applyLocalChange(backends[docId], data.payload)
-    sendMessageToRenderer({ docId, patch })
-
     backends[docId] = newBackend
-    broadcast()
+    sendMessageToRenderer({ docId, patch })
   }
+
+  // now tell everyone else about how things have changed
+  updatePeers(docId)
 })
 
+// Respond to messages from other peers
 channel.addEventListener('message', ({ data }: any) => {
   const { source, target } = data as GrossEventDataProtocol
 
@@ -85,7 +84,7 @@ channel.addEventListener('message', ({ data }: any) => {
   backends[docId] = nextBackend
   syncStates[source] = { ...syncStates[source], [docId]: nextSyncState }
 
-  broadcast()
+  updatePeers(docId)
 
   // TODO: batch these until synced
   if (patch) {
