@@ -13,6 +13,20 @@ const syncStates: { [peerId: string]: { [docId: string]: SyncState } } = {}
 // In real life, you'd open a websocket or a webRTC thing, or ... something.
 export const channel = new BroadcastChannel('automerge-demo-peer-discovery')
 
+function broadcast () {
+  // broadcast a request for the document
+  Object.entries(syncStates).forEach(([peer, syncState]) => {
+    const [nextSyncState, syncMessage] = Backend.generateSyncMessage(
+      backends[docId],
+      syncState[docId] || Backend.initSyncState(),
+    )
+    syncStates[peer] = { ...syncStates[peer], [docId]: nextSyncState }
+    sendMessage({
+      docId, source: workerId, target: peer, syncMessage,
+    })
+  })
+}
+
 // This function is mostly here to give me type checking on the communication.
 const sendMessageToRenderer = (message: BackendToFrontendMessage) => {
   postMessage(message)
@@ -29,18 +43,7 @@ self.addEventListener('message', (evt: any) => {
 
   if (data.type === 'OPEN') {
     backends[docId] = Backend.init()
-
-    // broadcast a request for the document
-    Object.entries(syncStates).forEach(([peer, syncState]) => {
-      const [nextSyncState, syncMessage] = Backend.generateSyncMessage(
-        backends[docId],
-        syncState[docId] || Backend.initSyncState(),
-      )
-      syncStates[peer] = { ...syncStates[peer], [docId]: nextSyncState }
-      sendMessage({
-        docId, source: workerId, target: peer, syncMessage,
-      })
-    })
+    broadcast()
   }
 
   // broadcast the change
@@ -49,16 +52,7 @@ self.addEventListener('message', (evt: any) => {
     sendMessageToRenderer({ docId, patch })
 
     backends[docId] = newBackend
-    Object.entries(syncStates).forEach(([peer, syncState]) => {
-      const [nextSyncState, syncMessage] = Backend.generateSyncMessage(
-        backends[docId],
-        syncState[docId] || Backend.initSyncState(),
-      )
-      syncStates[peer] = { ...syncStates[peer], [docId]: nextSyncState }
-      sendMessage({
-        docId, source: workerId, target: peer, syncMessage,
-      })
-    })
+    broadcast()
   }
 })
 
@@ -89,19 +83,7 @@ channel.addEventListener('message', ({ data }: any) => {
   backends[docId] = nextBackend
   syncStates[source] = { ...syncStates[source], [docId]: nextSyncState }
 
-  Object.keys(syncStates).forEach((peer) => {
-    const [nextPeerSyncState, nextPeerMessage] = Backend.generateSyncMessage(
-      backends[docId],
-      syncStates[peer][docId] || Backend.initSyncState(),
-    )
-    syncStates[peer] = { ...syncStates[peer], [docId]: nextPeerSyncState }
-
-    if (nextPeerMessage) {
-      sendMessage({
-        docId, source: workerId, target: peer, syncMessage: nextPeerMessage,
-      })
-    }
-  })
+  broadcast()
 
   // TODO: batch these until synced
   if (patch) {
