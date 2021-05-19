@@ -20,7 +20,7 @@
     "vite": "^2.1.0"
   },
   "dependencies": {
-    "automerge": "https://github.com/automerge/automerge#performance",
+    "automerge": "https://github.com/automerge/automerge",
     "svelte": "^3.35.0"
   }
 }
