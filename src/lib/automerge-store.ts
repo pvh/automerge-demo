@@ -14,7 +14,7 @@ interface CounterDoc {
 const urlParams = new URLSearchParams(window.location.search)
 const shouldStartPersistenceWorker = urlParams.get('persistence') === 'true'
 if (shouldStartPersistenceWorker) {
-  const persistenceWorker = new PersistenceWorker()
+  const persistenceWorker = new PersistenceWorker() // eslint-disable-line
 }
 
 export default function openDoc(docId: string, onOpen: () => any) {
@@ -40,7 +40,7 @@ export default function openDoc(docId: string, onOpen: () => any) {
     })
   }
 
-  // we should add a single event listener and dispatch to it
+  // we should add a single event listener and dispatch to it, this is silly
   automergeWorker.addEventListener('message', (event: MessageEvent) => {
     const message: BackendToFrontendMessage = event.data
 

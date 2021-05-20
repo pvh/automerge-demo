@@ -1,108 +1,123 @@
-import { openDB } from 'idb'
-import type { IDBPDatabase } from 'idb'
+import Dexie from 'dexie'
 import Automerge from 'automerge'
+import debug from 'debug'
+import type { DocumentId, PeerId } from './types'
 
-const DB_NAME = 'automerge-demo'
-
-// The limit of changes to keep before db.saveSnapshot will do serialization
 const MAX_CHANGES_TO_KEEP = 100
 
-export class DB {
-  db: Promise<IDBPDatabase<any>>
+interface SavedChange {
+  docId: DocumentId;
+  change: Automerge.BinaryChange;
+  timestamp: number;
+}
 
-  constructor() {
-    this.db = openDB(DB_NAME, 7, {
-      upgrade(db, oldVersion, newVersion, transaction) {
-        // Reset db
-        const storeNames = db.objectStoreNames
-        for (let i = 0; i < storeNames.length; i++) {
-          db.deleteObjectStore(storeNames.item(i))
-        }
+interface SavedBinary {
+  docId: DocumentId;
+  serializedDoc: Automerge.BinaryDocument;
+}
 
-        const changeStore = db.createObjectStore('changes', {
-          keyPath: 'hash',
-        })
-        changeStore.createIndex('docId', 'docId', { unique: false })
-        changeStore.createIndex('timestamp', 'timestamp', { unique: false })
+interface SavedState {
+  docId: DocumentId;
+  peerId: PeerId;
+  state: Automerge.BinarySyncState;
+}
 
-        const snapshotStore = db.createObjectStore('snapshots', {
-          keyPath: 'docId',
-        })
-      },
+export interface Doc {
+  changes: Automerge.BinaryChange[];
+  serializedDoc: Automerge.BinaryDocument;
+}
+
+export class DB extends Dexie {
+  documents: Dexie.Table<SavedBinary, DocumentId>
+
+  changes: Dexie.Table<SavedChange, DocumentId>
+
+  states: Dexie.Table<SavedState>
+
+  private log: debug.Debugger
+
+  constructor(dbname: string) {
+    super(dbname)
+    this.version(2).stores({
+      documents: 'id++,docId',
+      changes: 'id++,docId',
+      states: 'id++, [docId+contactId], docId',
     })
+    this.documents = this.table('documents')
+    this.changes = this.table('changes')
+    this.states = this.table('states')
+    this.log = debug('bc:automerge:db')
   }
 
-  async storeChange(docId: string, hash: string, change: any) {
-    const db = await this.db
-
-    await db.add('changes', {
-      docId,
-      hash,
-      change,
-      timestamp: Date.now(),
-    })
+  async storeSyncState(
+    docId: DocumentId,
+    peerId: PeerId,
+    state: Automerge.SyncState,
+  ): Promise<any> {
+    const item = await this.states
+      .where(['docId', 'contactId'])
+      .equals([docId, peerId])
+      .first()
+    const encodedState = Automerge.Backend.encodeSyncState(state)
+    if (item) return this.states.update(item, { state: encodedState })
+    return this.states.add({ docId, peerId, state: encodedState })
   }
 
-  async getChanges(docId: string) {
-    const singleKeyRange = IDBKeyRange.only(docId)
-    const db = await this.db
-    const values = await db.getAllFromIndex('changes', 'docId', singleKeyRange)
-    return values.map((v) => v.change)
+  async getSyncState(
+    docId: DocumentId,
+    peerId: PeerId,
+  ): Promise<Automerge.SyncState> {
+    const item = await this.states.where({ docId, peerId }).first()
+    if (item) return Automerge.Backend.decodeSyncState(item.state)
+    return null
   }
 
-  async getDoc(docId: string) {
-    const db = await this.db
-    // Get latest snapshot if it exists
-    const snapshot = await db.get('snapshots', docId)
+  async storeChange(
+    docId: string,
+    change: Automerge.BinaryChange,
+  ) {
+    return this.changes.add({ docId, change, timestamp: Date.now() })
+  }
 
-    // Get outstanding changes
-    const singleKeyRange = IDBKeyRange.only(docId)
-    const changeRecords = await db.getAllFromIndex(
-      'changes',
-      'docId',
-      singleKeyRange,
-    )
-    const changes = changeRecords.map((v) => v.change)
-    // Calc lastChangeTime
-    const lastChangeTime = changeRecords.reduce(
-      (max, rec) => Math.max(rec.timestamp, max),
-      null,
-    )
-
-    console.log(docId, changes)
-
+  async getDoc(docId: string): Promise<Doc> {
+    const doc = await this.documents.get(docId)
+    this.log('getDoc', doc)
+    const changes = await this.changes.where({ docId }).toArray()
     return {
-      serializedDoc: snapshot?.serializedDoc,
-      changes,
-      lastChangeTime,
+      serializedDoc: doc?.serializedDoc,
+      changes: changes.map((c) => c.change),
     }
   }
 
+  // TODO: not fully tested.
   async saveSnapshot(docId: string) {
-    const { serializedDoc, changes, lastChangeTime } = await this.getDoc(docId)
+    const { serializedDoc, changes } = await this.getDoc(docId)
     // Bail out of saving snapshot if changes are under threshold
     if (changes.length < MAX_CHANGES_TO_KEEP) return
-    // Create AM doc
+
     let doc = serializedDoc ? Automerge.load(serializedDoc) : Automerge.init()
     doc = Automerge.applyChanges(doc, changes)
-    // Serialize and save with timestamp
-    const nextSerializedDoc = Automerge.save(doc)
-    const db = await this.db
-    await db.put('snapshots', {
-      docId,
-      serializedDoc: nextSerializedDoc,
-      timestamp: Date.now(),
-    })
-    // Delete changes before lastChangeTime
-    const oldChangesKeyRange = IDBKeyRange.upperBound(lastChangeTime)
-    const index = db
-      .transaction('changes', 'readwrite')
-      .store.index('timestamp')
 
-    let cursor = await index.openCursor(oldChangesKeyRange)
-    while (cursor) {
-      cursor.delete()
-      cursor = await cursor.continue()
-    }
+    const lastChangeTime = changes.reduce((max, rec) => {
+      const change = Automerge.decodeChange(rec)
+      return Math.max(change.time, max)
+    }, 0)
+
+    const nextSerializedDoc = Automerge.save(doc)
+
+    const oldChanges = await this.changes.where({ docId })
+    const deletable = oldChanges.filter((c) => c.timestamp > lastChangeTime)
+    await this.changes.bulkDelete(await deletable.primaryKeys())
+
+    await this.documents.put({
+      serializedDoc: nextSerializedDoc,
+      docId,
+    })
+  }
+
+  async destroy() {
+    await this.documents.clear()
+    await this.changes.clear()
+    await this.states.clear()
   }
 }

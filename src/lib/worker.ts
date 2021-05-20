@@ -16,7 +16,7 @@ const syncStates: { [peerId: string]: { [docId: string]: SyncState } } = {}
 // In real life, you'd open a websocket or a webRTC thing, or ... something.
 export const channel = new BroadcastChannel('automerge-demo-peer-discovery')
 
-const db = new DB()
+const db = new DB('automerge')
 
 // must we store these on disk?
 // how are they corrected aside if they go funky aside from somehow
@@ -71,8 +71,7 @@ self.addEventListener('message', (evt: any) => {
     const [newBackend, patch, change] = Backend.applyLocalChange(backends[docId], data.payload)
     sendMessageToRenderer({ docId, patch })
 
-    const decodedChange = decodeChange(change)
-    db.storeChange(docId, (decodedChange as any).hash, change)
+    db.storeChange(docId, change)
 
     backends[docId] = newBackend
   }

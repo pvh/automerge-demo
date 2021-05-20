@@ -2,7 +2,7 @@ import { DB } from './db'
 import { throttleByArgument } from './utils'
 
 const THROTTLE_TIME = 3000
-const db = new DB()
+const db = new DB('automerge')
 const saveSnapshotByDocId = throttleByArgument(
   (docId) => db.saveSnapshot(docId),
   THROTTLE_TIME,
