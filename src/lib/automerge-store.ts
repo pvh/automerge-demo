@@ -40,10 +40,10 @@ export default function openDoc(docId: string, onOpen: () => any) {
     })
   }
 
-  automergeWorker.onmessage = (event: MessageEvent) => {
+  // we should add a single event listener and dispatch to it
+  automergeWorker.addEventListener('message', (event: MessageEvent) => {
     const message: BackendToFrontendMessage = event.data
 
-    // this is wrong -- we should dispatch more deliberately
     if (message.docId === docId) {
       if (message.isNewDoc) {
         change((doc) => { doc.count = 0 })
@@ -54,7 +54,7 @@ export default function openDoc(docId: string, onOpen: () => any) {
         onOpen()
       }
     }
-  }
+  })
 
   sendWorkerMessage(automergeWorker, {
     type: 'OPEN',
