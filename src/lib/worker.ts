@@ -1,6 +1,6 @@
 /* eslint-env worker */
 import {
-  Backend, BackendState, decodeChange, SyncState,
+  Backend, BackendState, SyncState,
 } from 'automerge'
 import type { BackendToFrontendMessage, GrossEventDataProtocol } from './types'
 import { DB } from './db'
