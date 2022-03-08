@@ -18,16 +18,27 @@ export const channel = new BroadcastChannel('automerge-demo-peer-discovery')
 
 const db = new DB()
 
+// FIXME(ja): I don't think an array of listeners should be necessary...
+// but I am trying to minimize changes to the code - once this is no longer
+// a worker, then we can create a better interface
+const listeners: Array<(message: BackendToFrontendMessage) => void> = []
+
 // must we store these on disk?
 // how are they corrected aside if they go funky aside from somehow
 // successfully syncing the whole repo?
 
 // This function is mostly here to give me type checking on the communication.
 const sendMessageToRenderer = (message: BackendToFrontendMessage) => {
-  postMessage(message)
+  console.log('sendMessageToRenderer.postMessage', message)
+  listeners.forEach(listener => listener(message))
+}
+
+export function addListener(listener: (message: BackendToFrontendMessage) => any) {
+  listeners.push(listener)
 }
 
 export function sendMessage(message: GrossEventDataProtocol) {
+  console.log('sendMessage', message)
   channel.postMessage(message)
 }
 
@@ -47,8 +58,9 @@ function updatePeers(docId: string) {
 }
 
 // Respond to messages from the frontend document
-self.addEventListener('message', (evt: any) => {
-  const { data } = evt
+// FIXME(ja): we could have a type here!
+export const send = (data: any) => {
+  console.log('send', data)
   const { docId } = data
 
   if (data.type === 'OPEN') {
@@ -79,7 +91,7 @@ self.addEventListener('message', (evt: any) => {
 
   // now tell everyone else about how things have changed
   updatePeers(docId)
-})
+}
 
 // Respond to messages from other peers
 channel.addEventListener('message', ({ data }: any) => {
